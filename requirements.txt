@@ -94,5 +94,5 @@ urllib3==2.2.2
 validators==0.33.0
 virtualenv==20.26.3
 websockets==13.0.1
-
+gunicorn==21.3.0
 
