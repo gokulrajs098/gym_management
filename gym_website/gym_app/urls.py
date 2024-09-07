@@ -36,4 +36,10 @@ urlpatterns = [
     path('attendance/', include('attendance.urls')),
     path('customers/', include('customers.urls')),
     path('events/', include('events.urls'))
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)+ static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+] 
+
+# Add static file serving during development
+urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+
+# Add media file serving during development
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
