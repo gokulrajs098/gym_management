@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_swagger',
     'rest_framework.authtoken',
+    'rest_framework_simplejwt',
     'gym_products',
     'gym_details',
     'gym_mentors',
