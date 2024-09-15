@@ -626,7 +626,7 @@ def send_password_reset_email(request):
     request_body=PasswordResetSerializer,
     responses={200: 'Password has been reset', 400: 'Invalid token or user', 500: 'Internal server error'}
 )
-@api_view(['POST', 'GET'])
+@api_view(['POST'])
 def reset_password(request, uidb64, token):
     try:
         uid = force_str(urlsafe_base64_decode(uidb64))
