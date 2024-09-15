@@ -149,19 +149,11 @@ class SuperUserLoginSerializer(serializers.Serializer):
         attrs['user'] = user
         return attrs
     
-class ResetPasswordSerializer(serializers.Serializer):
-    uid = serializers.CharField()
-    token = serializers.CharField()
+class PasswordResetEmailSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+class PasswordResetSerializer(serializers.Serializer):
     new_password = serializers.CharField(write_only=True)
-    confirm_password = serializers.CharField(write_only=True)
-
-    def validate(self, data):
-        if data['new_password'] != data['confirm_password']:
-            raise serializers.ValidationError("The new password and confirm password do not match.")
-        return data
-
-class ResetPasswordEmailSerializer(serializers.Serializer):
-    email = serializers.EmailField(required=True)
 
 class LogoutSerializer(serializers.Serializer):
     refresh = serializers.CharField(required=True)
