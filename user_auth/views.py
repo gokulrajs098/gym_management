@@ -3,11 +3,11 @@ from django.urls import reverse
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view
-from .serializers import UserRegistrationSerializer, UserLoginSerializer, AdminRegistrationSerializer, AdminLoginSerializer, SuperUserLoginSerializer, ResetPasswordEmailSerializer, ResetPasswordSerializer, LogoutSerializer
+from .serializers import UserRegistrationSerializer, UserLoginSerializer, AdminRegistrationSerializer, AdminLoginSerializer, SuperUserLoginSerializer,PasswordResetEmailSerializer, PasswordResetSerializer, LogoutSerializer
 from .models import CustomUserRegistration
-from rest_framework.authtoken.models import Token
-from rest_framework.views import APIView
+import logging
 import jwt
+import base64
 from rest_framework_simplejwt.tokens import RefreshToken
 from datetime import timedelta, datetime
 from rest_framework_simplejwt.exceptions import TokenError
@@ -20,10 +20,15 @@ from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
-from django.utils.encoding import force_bytes
+from django.utils.encoding import force_bytes, force_str
 from django.conf import settings
+from .gmail_service import get_gmail_service
+from email.mime.text import MIMEText
 
 SECRET_KEY = ")_^4mxv8-8z$+lq5j%vuu%o09c20mcgs2_fp)3zy*hy9=0wo6("
+token_generator = PasswordResetTokenGenerator()
+logger = logging.getLogger(__name__)
+
 
 class IsSuperUserForPost(BasePermission):
     def has_permission(self, request, view):
@@ -570,106 +575,79 @@ def logout_view(request):
             if 'expired' in str(e):
                 return Response({'error': 'Token has expired, please log in again.'}, status=status.HTTP_400_BAD_REQUEST)
             return Response({'error': 'Token is invalid or could not be blacklisted.'}, status=status.HTTP_400_BAD_REQUEST)
-        
         except Exception as e:
             return Response({'error': f'Token is invalid or could not blacklist: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
-    
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-email_schema = openapi.Schema(
-    type=openapi.TYPE_STRING,
-    format=openapi.FORMAT_EMAIL,
-    description='Email address of the user',
-)
-
 @swagger_auto_schema(
-    method='POST',
-    request_body=openapi.Schema(
-        type=openapi.TYPE_OBJECT,
-        required=['email'],
-        properties={
-            'email': email_schema,
-        }
-    ),
-    responses={
-        200: openapi.Response(description='Password reset email sent'),
-        404: openapi.Response(description='User not found'),
-        400: openapi.Response(description='Invalid request')
-    }
+    method='post',
+    request_body=PasswordResetEmailSerializer,
+    responses={200: 'Password reset link sent', 404: 'Invalid email', 500: 'Internal server error'}
 )
 @api_view(['POST'])
 def send_password_reset_email(request):
-    serializer = ResetPasswordEmailSerializer(data=request.data)
-    if serializer.is_valid():
-        email = serializer.data['email']
-        user = CustomUserRegistration.objects.filter(email=email).first()
-        if user:
-            token_generator = PasswordResetTokenGenerator()
-            token = token_generator.make_token(user)
-            uid = urlsafe_base64_encode(force_bytes(user.pk))
-            try:
-                send_mail(
-                    subject="Password Reset",
-                    message=f"Use the following token and uid to reset your password.\nUID: {uid}\nToken: {token}",
-                    from_email=settings.EMAIL_HOST_USER,
-                    recipient_list=[email],
-                    fail_silently=False,
-                )
-                return Response({
-                    "detail": "Password reset email has been sent.",
-                    "uid": uid,
-                    "token": token
-                }, status=status.HTTP_200_OK)
-            except Exception as e:
-                return Response({
-                    "detail": f"Failed to send email: {str(e)}"
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    email = request.data.get('email')
+    if not email:
+        return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        # Try to find the user by email
+        user = CustomUserRegistration.objects.get(email=email)
+    except CustomUserRegistration.DoesNotExist:
+        return Response({'error': 'Invalid email'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Error querying user by email: {str(e)}")
+        return Response({'error': 'Something went wrong'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    try:
+        # Generate password reset token and UID
+        token = token_generator.make_token(user)
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        reset_link = request.build_absolute_uri(reverse('password-reset-confirm', args=[uid, token]))
+
+        # Create the email content
+        message = MIMEText(f'Click the link to reset your password: {reset_link}')
+        message['to'] = email
+        message['subject'] = 'Password Reset Request'
+        raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
+
+        # Send email via Gmail OAuth
+        service = get_gmail_service()
+        message = {'raw': raw_message}
+        service.users().messages().send(userId='me', body=message).execute()
+
+        return Response({'message': 'Password reset link sent'}, status=status.HTTP_200_OK)
+    except Exception as e:
+        logger.error(f"Error sending email: {str(e)}")
+        return Response({'error': 'Failed to send email'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @swagger_auto_schema(
-    method='POST',
-    request_body=openapi.Schema(
-        type=openapi.TYPE_OBJECT,
-        required=['uid', 'token', 'new_password'],
-        properties={
-            'uid': openapi.Schema(type=openapi.TYPE_STRING, description='User ID in base64 encoding'),
-            'token': openapi.Schema(type=openapi.TYPE_STRING, description='Password reset token'),
-            'new_password': openapi.Schema(type=openapi.TYPE_STRING, description='New password')
-        }
-    ),
-    responses={
-        200: openapi.Response(description='Password reset successfully'),
-        400: openapi.Response(description='Invalid token, UID, or request')
-    }
+    method='post',
+    request_body=PasswordResetSerializer,
+    responses={200: 'Password has been reset', 400: 'Invalid token or user', 500: 'Internal server error'}
 )
-@api_view(['POST'])
-def reset_password_confirm(request):
-    serializer = ResetPasswordSerializer(data=request.data)
+@api_view(['POST', 'GET'])
+def reset_password(request, uidb64, token):
+    try:
+        uid = force_str(urlsafe_base64_decode(uidb64))
+        user = CustomUserRegistration.objects.get(pk=uid)
+    except (TypeError, ValueError, OverflowError, CustomUserRegistration.DoesNotExist) as e:
+        logger.error(f"Error decoding user or fetching user: {str(e)}")
+        return Response({'error': 'Invalid user'}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        logger.error(f"Unexpected error: {str(e)}")
+        return Response({'error': 'Something went wrong'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    if serializer.is_valid():
-        uidb64 = serializer.data.get('uid')
-        token = serializer.data.get('token')
-        new_password = serializer.data.get('new_password')
-
-        # Check if uid is None or empty
-        if not uidb64:
-            return Response({"detail": "UID is required."}, status=status.HTTP_400_BAD_REQUEST)
-
+    if token_generator.check_token(user, token):
+        new_password = request.data.get('new_password')
+        if not new_password:
+            return Response({'error': 'New password is required'}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            decoded_uid = urlsafe_base64_decode(uidb64).decode()
-            user = CustomUserRegistration.objects.get(pk=decoded_uid)
-        except (TypeError, ValueError, OverflowError, CustomUserRegistration.DoesNotExist) as e:
-            return Response({"detail": f"Invalid UID: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Check token validity
-        token_generator = PasswordResetTokenGenerator()
-        if token_generator.check_token(user, token):
-            user.set_password(new_password)  # Passwords have already been validated
+            user.set_password(new_password)
             user.save()
-            return Response({"detail": "Password reset successfully."}, status=status.HTTP_200_OK)
-        else:
-            return Response({"detail": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
-
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'message': 'Password has been reset'}, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"Error resetting password: {str(e)}")
+            return Response({'error': 'Failed to reset password'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    else:
+        return Response({'error': 'Invalid token'}, status=status.HTTP_400_BAD_REQUEST)
