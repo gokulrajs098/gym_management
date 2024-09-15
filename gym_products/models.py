@@ -1,3 +1,5 @@
+# products/models.py
+
 from django.db import models
 from user_auth.models import CustomUserRegistration
 import uuid
@@ -11,6 +13,7 @@ class GymProducts(models.Model):
     image = models.ImageField(upload_to='pics')
     reviews = models.CharField(max_length=100)
     stock = models.IntegerField()
+    price = models.DecimalField(max_digits=10, decimal_places=2,default= 0)  # New price field
     Gym = models.ForeignKey(GymDetails, on_delete=models.CASCADE)
     admin = models.ForeignKey(CustomUserRegistration, on_delete=models.CASCADE, related_name='products')
     stripe_product_id = models.CharField(max_length=50, null=True, blank=True)

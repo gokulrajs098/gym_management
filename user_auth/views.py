@@ -11,7 +11,7 @@ import jwt
 from rest_framework_simplejwt.tokens import RefreshToken
 from datetime import timedelta, datetime
 from rest_framework_simplejwt.exceptions import TokenError
-
+from gym_details.models import GymDetails
 import uuid
 from rest_framework.permissions import BasePermission
 from drf_yasg.utils import swagger_auto_schema
@@ -191,7 +191,7 @@ def manage_user_register(request):
                 type=openapi.TYPE_STRING,
                 maxLength=150,
                 minLength=1,
-                pattern='^[\w.@+-]+$',
+                pattern=r'^[\w.@+-]+$',
                 description='Required. 150 characters or fewer. Letters, digits and @/./+/-/_ only.'
             ),
             'first_name': openapi.Schema(type=openapi.TYPE_STRING, maxLength=150, description='First name'),
@@ -226,7 +226,7 @@ def manage_user_register(request):
                 type=openapi.TYPE_STRING,
                 maxLength=150,
                 minLength=1,
-                pattern='^[\w.@+-]+$',
+                pattern=r'^[\w.@+-]+$',
                 description='Required. 150 characters or fewer. Letters, digits and @/./+/-/_ only.'
             ),
             'first_name': openapi.Schema(type=openapi.TYPE_STRING, maxLength=150, description='First name'),
@@ -381,6 +381,7 @@ def user_login(request):
         400: 'Bad Request'
     }
 )
+
 @api_view(['POST'])
 def admin_login(request):
     serializer = AdminLoginSerializer(data=request.data)
@@ -388,8 +389,14 @@ def admin_login(request):
         user = serializer.validated_data['user']
         user_id = str(user.pk)
 
+        try:
+            gym = GymDetails.objects.get(admin=user)
+            gym_id = gym.gym_id
+        except GymDetails.DoesNotExist:
+            gym_id = None  # Handle the case where the gym does not exist
+
         access_token_payload = {
-            'user_id': user_id,  
+            'user_id': user_id,
             'exp': int((datetime.now() + timedelta(minutes=10)).timestamp())
         }
         access_token = jwt.encode(access_token_payload, SECRET_KEY, algorithm='HS256')
@@ -398,52 +405,49 @@ def admin_login(request):
             'type': 'refresh',
             'exp': int((datetime.now() + timedelta(days=7)).timestamp())
         }
-        refresh_token = jwt.encode(refresh_token_payload, SECRET_KEY, algorithm='HS256') 
+        refresh_token = jwt.encode(refresh_token_payload, SECRET_KEY, algorithm='HS256')
+
         return Response({
             "message": "Login successful",
             "access_token": access_token,
             "refresh_token": refresh_token,
             "user_id": user_id,
             "access_token_expires_in": 600,
-            "refresh_token_expires_in": 604800
+            "refresh_token_expires_in": 604800,
+            "gym_id": gym_id  # Include gym_id in the response
         }, status=status.HTTP_200_OK)
+    
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 @swagger_auto_schema(
     method='post',
-    operation_description="Refresh access token using a valid refresh token.",
-    request_body=openapi.Schema(
-        type=openapi.TYPE_OBJECT,
-        properties={
-            'refresh_token': openapi.Schema(
-                type=openapi.TYPE_STRING,
-                description='The refresh token used to obtain a new access token.'
-            ),
-        },
-        required=['refresh_token']
-    ),
+    request_body=AdminLoginSerializer,
     responses={
         200: openapi.Response(
-            description="Tokens refreshed successfully",
+            description="Login successful",
             examples={
-                "application/json": {
-                    "access_token": "new_access_token",
-                    "refresh_token": "new_refresh_token",
-                    "access_token_expires_in": 3600,
-                    "refresh_token_expires_in": 604800
+                'application/json': {
+                    "message": "Login successful",
+                    "access_token": "string",
+                    "refresh_token": "string",
+                    "user_id": "string",
+                    "access_token_expires_in": 600,
+                    "refresh_token_expires_in": 604800,
+                    "gym_id": "string or null"  # Adjust based on your actual type
                 }
             }
         ),
-        401: openapi.Response(
-            description="Unauthorized, invalid or expired token",
+        400: openapi.Response(
+            description="Bad Request",
             examples={
-                "application/json": {
-                    "error": "Refresh token has expired"  # or "Invalid refresh token"
+                'application/json': {
+                    "username": ["This field is required."],
+                    "password": ["This field is required."]
                 }
             }
         )
     }
 )
+
 @api_view(['POST'])
 def refresh_token(request):
     refresh_token = request.data.get('refresh_token')

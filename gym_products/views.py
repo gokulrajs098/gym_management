@@ -1,4 +1,6 @@
-from django.shortcuts import get_object_or_404
+#products/views.py
+
+from django.shortcuts import get_object_or_404, get_list_or_404
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view, parser_classes
@@ -9,7 +11,7 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from gym_details.models import GymDetails
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
-from django.shortcuts import get_list_or_404, get_object_or_404
+
 @swagger_auto_schema(
     method='get',
     operation_description="Fetch products with optional filters. You can filter by gym_id, admin_id, and product_id.",
@@ -31,6 +33,7 @@ from django.shortcuts import get_list_or_404, get_object_or_404
                         "image": "http://example.com/image.jpg",
                         "reviews": "Product Reviews",
                         "stock": 100,
+                        "price": "19.99",
                         "stripe_price_id": "stripe-price-id",
                         "stripe_product_id": "stripe-product-id",
                         "gym": "gym-id",
@@ -53,6 +56,7 @@ from django.shortcuts import get_list_or_404, get_object_or_404
         openapi.Parameter('image', openapi.IN_FORM, type=openapi.TYPE_FILE, description='Product image', required=True),
         openapi.Parameter('reviews', openapi.IN_FORM, type=openapi.TYPE_STRING, description='Product reviews', required=True),
         openapi.Parameter('stock', openapi.IN_FORM, type=openapi.TYPE_INTEGER, description='Product stock', required=True),
+        openapi.Parameter('price', openapi.IN_FORM, type=openapi.TYPE_NUMBER, format=openapi.FORMAT_DECIMAL, description='Product price', required=True),
         openapi.Parameter('gym_id', openapi.IN_FORM, type=openapi.TYPE_STRING, format=openapi.FORMAT_UUID, description='Gym ID (UUID)', required=True),
         openapi.Parameter('admin', openapi.IN_FORM, type=openapi.TYPE_STRING, format=openapi.FORMAT_UUID, description='Admin ID (UUID)', required=True),
     ],
@@ -70,12 +74,17 @@ from django.shortcuts import get_list_or_404, get_object_or_404
         openapi.Parameter('desc', openapi.IN_FORM, type=openapi.TYPE_STRING, description='Product description'),
         openapi.Parameter('image', openapi.IN_FORM, type=openapi.TYPE_FILE, description='Product image'),
         openapi.Parameter('reviews', openapi.IN_FORM, type=openapi.TYPE_STRING, description='Product reviews'),
-        openapi.Parameter('admin', openapi.IN_FORM, type=openapi.TYPE_STRING, description='Admin ID', required=True),
         openapi.Parameter('stock', openapi.IN_FORM, type=openapi.TYPE_INTEGER, description='Product stock'),
+        openapi.Parameter('price', openapi.IN_FORM, type=openapi.TYPE_NUMBER, format=openapi.FORMAT_DECIMAL, description='Product price'),
+        openapi.Parameter('admin', openapi.IN_FORM, type=openapi.TYPE_STRING, description='Admin ID', required=True),
         openapi.Parameter('gym_id', openapi.IN_FORM, type=openapi.TYPE_STRING, format='uuid', description='Gym ID (UUID)', required=True),
         openapi.Parameter('product_id', openapi.IN_FORM, type=openapi.TYPE_STRING, format='uuid', description='Product ID (UUID)', required=True),
     ],
-    responses={200: 'Product updated successfully', 400: 'Bad Request', 404: 'Not Found'}
+    responses={
+        200: openapi.Response(description='Product updated successfully'),
+        400: openapi.Response(description='Bad Request'),
+        404: openapi.Response(description='Not Found'),
+    }
 )
 @swagger_auto_schema(
     method='delete',
@@ -86,133 +95,104 @@ from django.shortcuts import get_list_or_404, get_object_or_404
         openapi.Parameter('product_id', openapi.IN_QUERY, type=openapi.TYPE_STRING, format='uuid', description='Product ID (UUID)'),
     ],
     responses={
-        204: 'Product deleted successfully',
-        400: 'Bad Request',
-        404: 'Not Found',
+        204: openapi.Response(description='Product deleted successfully'),
+        400: openapi.Response(description='Bad Request'),
+        404: openapi.Response(description='Not Found'),
     }
 )
-@api_view(['GET', 'POST', 'DELETE', 'PUT'])
-@parser_classes([MultiPartParser, FormParser])
-def manage_products(request, product_id=None):
-    if request.method == "GET":
-        gym_id = request.query_params.get('gym_id')
-        admin_id = request.query_params.get('admin')
-        product_id = request.query_params.get('product_id')
-        
-        try:
-            # Verify the existence of gym_id
+@api_view(['GET', 'POST', 'PUT', 'DELETE'])
+@parser_classes([FormParser, MultiPartParser])
+def manage_products(request):
+    try:
+        if request.method == "GET":
+            gym_id = request.query_params.get('gym_id')
+            admin_id = request.query_params.get('admin')
+            product_id = request.query_params.get('product_id')
+
             if gym_id and not GymDetails.objects.filter(id=gym_id).exists():
                 return Response({"error": "Gym ID not found"}, status=status.HTTP_404_NOT_FOUND)
-            
-            # Verify the existence of admin_id
+
             if admin_id and not CustomUserRegistration.objects.filter(id=admin_id, is_staff=True).exists():
                 return Response({"error": "Admin ID not found or not an admin user"}, status=status.HTTP_404_NOT_FOUND)
-            
-            # Verify the existence of product_id
+
             if product_id and not GymProducts.objects.filter(id=product_id).exists():
                 return Response({"error": "Product ID not found"}, status=status.HTTP_404_NOT_FOUND)
-            
+
             if product_id:
-                # Fetch a specific product
                 product = get_object_or_404(GymProducts, id=product_id)
                 serializer = ProductSerializer(product)
                 return Response(serializer.data, status=status.HTTP_200_OK)
-            
+
             if admin_id and gym_id:
-                # Fetch products for a specific gym and admin
                 admin = CustomUserRegistration.objects.get(id=admin_id, is_staff=True)
                 gym = GymDetails.objects.get(id=gym_id, admin=admin)
                 products = get_list_or_404(GymProducts, Gym=gym, admin=admin)
                 serializer = ProductSerializer(products, many=True)
                 return Response(serializer.data, status=status.HTTP_200_OK)
-            
+
             if gym_id:
-                # Fetch products for a specific gym
                 gym = GymDetails.objects.get(id=gym_id)
                 products = get_list_or_404(GymProducts, Gym=gym)
                 serializer = ProductSerializer(products, many=True)
                 return Response(serializer.data, status=status.HTTP_200_OK)
-            
-            # Fetch all products if no filters are provided
+
             products = GymProducts.objects.all()
             serializer = ProductSerializer(products, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
-        
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        
-        
-    elif request.method == "POST":
-        admin_id = request.data.get('admin')
-        gym_id = request.data.get('gym_id')
-        if not admin_id or not gym_id:
-            return Response({"error": "Admin ID and Gym ID are required"}, status=status.HTTP_400_BAD_REQUEST)
-        try:
+        elif request.method == "POST":
+            admin_id = request.data.get('admin')
+            gym_id = request.data.get('gym_id')
+            if not admin_id or not gym_id:
+                return Response({"error": "Admin ID and Gym ID are required"}, status=status.HTTP_400_BAD_REQUEST)
+
             admin = CustomUserRegistration.objects.get(id=admin_id, is_staff=True)
             gym = GymDetails.objects.get(id=gym_id, admin=admin)
-        except CustomUserRegistration.DoesNotExist:
-            return Response({"error": "Admin ID not found or not an admin user"}, status=status.HTTP_404_NOT_FOUND)
-        except GymDetails.DoesNotExist:
-            return Response({"error": "Gym ID not found for the given admin"}, status=status.HTTP_404_NOT_FOUND)
-        
-        data = request.data.copy()
-        data['Gym'] = gym_id
-        serializer = ProductSerializer(data=data, context={'request': request})
-        if serializer.is_valid():
-            serializer.save()
-            return Response({"message": "Product added successfully"}, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    elif request.method == "PUT":
-        admin_id = request.data.get('admin')
-        gym_id = request.data.get('gym_id')
-        product_id = request.data.get('product_id')
-        if not admin_id or not gym_id or not product_id:
-            return Response({"error": "Admin ID, Gym ID, and Product ID are required"}, status=status.HTTP_400_BAD_REQUEST)
-        try:
+
+            data = request.data.copy()
+            data['Gym'] = gym_id
+            serializer = ProductSerializer(data=data, context={'request': request})
+            if serializer.is_valid():
+                serializer.save()
+                return Response({"message": "Product added successfully"}, status=status.HTTP_201_CREATED)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        elif request.method == "PUT":
+            admin_id = request.data.get('admin')
+            gym_id = request.data.get('gym_id')
+            product_id = request.data.get('product_id')
+            if not admin_id or not gym_id or not product_id:
+                return Response({"error": "Admin ID, Gym ID, and Product ID are required"}, status=status.HTTP_400_BAD_REQUEST)
+
             admin = CustomUserRegistration.objects.get(id=admin_id, is_staff=True)
             gym = GymDetails.objects.get(id=gym_id, admin=admin)
             gym_product = get_object_or_404(GymProducts, admin_id=admin_id, Gym=gym, id=product_id)
-            
+
             serializer = ProductSerializer(gym_product, data=request.data, partial=True, context={'request': request})
-            
             if serializer.is_valid():
                 serializer.save()
                 return Response({"message": "Product details updated successfully"}, status=status.HTTP_200_OK)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
-        except CustomUserRegistration.DoesNotExist:
-            return Response({"error": "Admin ID not found or not an admin user"}, status=status.HTTP_404_NOT_FOUND)
-        except GymDetails.DoesNotExist:
-            return Response({"error": "Gym ID not found for the given admin"}, status=status.HTTP_404_NOT_FOUND)
-        except GymProducts.DoesNotExist:
-            return Response({"error": "Product ID not found for the given admin and gym"}, status=status.HTTP_404_NOT_FOUND)
 
-    elif request.method == "DELETE":
-        admin_id = request.query_params.get('admin')
-        gym_id = request.query_params.get('gym_id')
-        product_id = request.query_params.get('product_id')
+        elif request.method == "DELETE":
+            admin_id = request.query_params.get('admin')
+            gym_id = request.query_params.get('gym_id')
+            product_id = request.query_params.get('product_id')
 
-        if not admin_id or not gym_id or not product_id:
-            return Response({"error": "Admin ID, Gym ID, and Product ID are required"}, status=status.HTTP_400_BAD_REQUEST)
+            if not admin_id or not gym_id or not product_id:
+                return Response({"error": "Admin ID, Gym ID, and Product ID are required"}, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            # Verify if the admin exists and is a staff member
             admin = CustomUserRegistration.objects.get(id=admin_id, is_staff=True)
-            
-            # Verify if the gym exists and is associated with the admin
             gym = GymDetails.objects.get(id=gym_id, admin=admin)
-            
-            # Verify if the product exists and is associated with the admin and gym
             gym_product = GymProducts.objects.get(id=product_id, admin=admin, Gym=gym)
-            
-            # Delete the product
             gym_product.delete()
             return Response({"message": "Product deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
-        
-        except CustomUserRegistration.DoesNotExist:
-            return Response({"error": "Admin ID not found or not an admin user"}, status=status.HTTP_404_NOT_FOUND)
-        except GymDetails.DoesNotExist:
-            return Response({"error": "Gym ID not found for the given admin"}, status=status.HTTP_404_NOT_FOUND)
-        except GymProducts.DoesNotExist:
-            return Response({"error": "Product ID not found for the given admin and gym"}, status=status.HTTP_404_NOT_FOUND)
+
+    except CustomUserRegistration.DoesNotExist:
+        return Response({"error": "Admin ID not found or not an admin user"}, status=status.HTTP_404_NOT_FOUND)
+    except GymDetails.DoesNotExist:
+        return Response({"error": "Gym ID not found for the given admin"}, status=status.HTTP_404_NOT_FOUND)
+    except GymProducts.DoesNotExist:
+        return Response({"error": "Product ID not found for the given admin and gym"}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
