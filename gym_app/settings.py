@@ -21,7 +21,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'user_auth',
     'rest_framework',
-    'rest_framework_swagger',
+    #'rest_framework_swagger',
     'rest_framework.authtoken',
     'rest_framework_simplejwt',
     'gym_products',
