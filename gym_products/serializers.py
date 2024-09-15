@@ -1,11 +1,11 @@
+# products / serializers.py
+
 from rest_framework import serializers
 from .models import GymProducts
 from gym_details.models import GymDetails
 from user_auth.models import CustomUserRegistration
 import stripe
 from django.conf import settings
-from django.core.files.storage import default_storage
-from django.core.files.base import ContentFile
 
 # Set your Stripe secret key (from settings)
 stripe.api_key = settings.STRIPE_TEST_SECRET_KEY
@@ -17,26 +17,25 @@ class ProductSerializer(serializers.ModelSerializer):
     desc = serializers.CharField(required=True)
     reviews = serializers.CharField(required=True)
     stock = serializers.IntegerField(required=True)
+    price = serializers.DecimalField(max_digits=10, decimal_places=2, required=True)  # New price field
     Gym = serializers.PrimaryKeyRelatedField(queryset=GymDetails.objects.all(), required=True)
     admin = serializers.PrimaryKeyRelatedField(queryset=CustomUserRegistration.objects.filter(is_staff=True), required=True)
     
     class Meta:
         model = GymProducts
-        fields = ['id', 'name', 'type', 'desc', 'image', 'reviews', 'stock', 'Gym', 'admin', 'stripe_product_id', 'stripe_price_id']
+        fields = ['id', 'name', 'type', 'desc', 'image', 'reviews', 'stock', 'price', 'Gym', 'admin', 'stripe_product_id', 'stripe_price_id']
     
     def create(self, validated_data):
-
-
-        # Create a Stripe Product (adjust as per your needs)
+        # Create a Stripe Product
         stripe_product = stripe.Product.create(
             name=validated_data['name'],
             description=validated_data['desc'],
         )
 
-        # Create a Stripe Price (adjust as per your needs)
+        # Create a Stripe Price
         stripe_price = stripe.Price.create(
             product=stripe_product.id,
-            unit_amount=validated_data['stock'] * 100,  # Example: Price based on stock * 100 cents
+            unit_amount=int(validated_data['price'] * 100),  # Convert price to cents
             currency='usd',  # Use your preferred currency
         )
 
@@ -55,10 +54,10 @@ class ProductSerializer(serializers.ModelSerializer):
         instance.image = validated_data.get('image', instance.image)
         instance.reviews = validated_data.get('reviews', instance.reviews)
         instance.stock = validated_data.get('stock', instance.stock)
-        instance.Gym = validated_data.get('Gym', instance.Gym)
-
+        instance.price = validated_data.get('price', instance.price)  # Update price
+        
         # Optional: Update Stripe product/price if needed
-        if 'name' in validated_data or 'desc' in validated_data or 'stock' in validated_data:
+        if 'name' in validated_data or 'desc' in validated_data or 'price' in validated_data:
             # Update Stripe Product
             stripe.Product.modify(
                 instance.stripe_product_id,
@@ -69,6 +68,7 @@ class ProductSerializer(serializers.ModelSerializer):
             # Update Stripe Price
             stripe.Price.modify(
                 instance.stripe_price_id,
+                unit_amount=int(validated_data.get('price', instance.price) * 100),  # Convert price to cents
             )
 
         instance.save()
