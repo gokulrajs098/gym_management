@@ -60,7 +60,6 @@ class UserLoginSerializer(serializers.Serializer):
         
         attrs['user'] = user
         return attrs
-    
 
 class AdminRegistrationSerializer(serializers.ModelSerializer):
     password1 = serializers.CharField(max_length=20, write_only=True)
