@@ -396,9 +396,9 @@ def admin_login(request):
 
         try:
             gym = GymDetails.objects.get(admin=user)
-            gym_id = GymDetails.id
+            gym_id_ = GymDetails.id
         except GymDetails.DoesNotExist:
-            gym_id = None  # Handle the case where the gym does not exist
+            gym_id_ = None  # Handle the case where the gym does not exist
 
         access_token_payload = {
             'user_id': user_id,
@@ -419,7 +419,7 @@ def admin_login(request):
             "user_id": user_id,
             "access_token_expires_in": 600,
             "refresh_token_expires_in": 604800,
-            "gym_id": gym_id  # Include gym_id in the response
+            "gym_id": gym_id_  # Include gym_id in the response
         }, status=status.HTTP_200_OK)
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -437,7 +437,7 @@ def admin_login(request):
                     "user_id": "string",
                     "access_token_expires_in": 600,
                     "refresh_token_expires_in": 604800,
-                    "gym_id": "string or null"  # Adjust based on your actual type
+                    "gym_id": "string or null"  
                 }
             }
         ),
