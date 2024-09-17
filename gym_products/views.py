@@ -18,7 +18,7 @@ from django.shortcuts import get_list_or_404, get_object_or_404
         openapi.Parameter('admin', openapi.IN_QUERY, type=openapi.TYPE_STRING, format='uuid', description='Admin ID (UUID)'),
         openapi.Parameter('product_id', openapi.IN_QUERY, type=openapi.TYPE_STRING, format='uuid', description='Product ID (UUID)'),
     ],
-    responses={
+        responses={
         200: openapi.Response(
             description="Successful response",
             examples={
@@ -31,6 +31,7 @@ from django.shortcuts import get_list_or_404, get_object_or_404
                         "image": "http://example.com/image.jpg",
                         "reviews": "Product Reviews",
                         "stock": 100,
+                        "price": "19.99",
                         "stripe_price_id": "stripe-price-id",
                         "stripe_product_id": "stripe-product-id",
                         "gym": "gym-id",
@@ -53,12 +54,14 @@ from django.shortcuts import get_list_or_404, get_object_or_404
         openapi.Parameter('image', openapi.IN_FORM, type=openapi.TYPE_FILE, description='Product image', required=True),
         openapi.Parameter('reviews', openapi.IN_FORM, type=openapi.TYPE_STRING, description='Product reviews', required=True),
         openapi.Parameter('stock', openapi.IN_FORM, type=openapi.TYPE_INTEGER, description='Product stock', required=True),
+        openapi.Parameter('price', openapi.IN_FORM, type=openapi.TYPE_NUMBER, format=openapi.FORMAT_DECIMAL, description='Product price', required=True),
         openapi.Parameter('gym_id', openapi.IN_FORM, type=openapi.TYPE_STRING, format=openapi.FORMAT_UUID, description='Gym ID (UUID)', required=True),
         openapi.Parameter('admin', openapi.IN_FORM, type=openapi.TYPE_STRING, format=openapi.FORMAT_UUID, description='Admin ID (UUID)', required=True),
     ],
     responses={
         201: openapi.Response(description='Product added successfully'),
         400: openapi.Response(description='Bad Request'),
+        
     }
 )
 @swagger_auto_schema(
@@ -70,8 +73,9 @@ from django.shortcuts import get_list_or_404, get_object_or_404
         openapi.Parameter('desc', openapi.IN_FORM, type=openapi.TYPE_STRING, description='Product description'),
         openapi.Parameter('image', openapi.IN_FORM, type=openapi.TYPE_FILE, description='Product image'),
         openapi.Parameter('reviews', openapi.IN_FORM, type=openapi.TYPE_STRING, description='Product reviews'),
-        openapi.Parameter('admin', openapi.IN_FORM, type=openapi.TYPE_STRING, description='Admin ID', required=True),
         openapi.Parameter('stock', openapi.IN_FORM, type=openapi.TYPE_INTEGER, description='Product stock'),
+        openapi.Parameter('price', openapi.IN_FORM, type=openapi.TYPE_NUMBER, format=openapi.FORMAT_DECIMAL, description='Product price'),
+        openapi.Parameter('admin', openapi.IN_FORM, type=openapi.TYPE_STRING, description='Admin ID', required=True),
         openapi.Parameter('gym_id', openapi.IN_FORM, type=openapi.TYPE_STRING, format='uuid', description='Gym ID (UUID)', required=True),
         openapi.Parameter('product_id', openapi.IN_FORM, type=openapi.TYPE_STRING, format='uuid', description='Product ID (UUID)', required=True),
     ],
