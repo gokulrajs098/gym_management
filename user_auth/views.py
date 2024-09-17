@@ -396,7 +396,7 @@ def admin_login(request):
 
         try:
             gym = GymDetails.objects.get(admin=user)
-            gym_id = gym.gym_id
+            gym_id = GymDetails.id
         except GymDetails.DoesNotExist:
             gym_id = None  # Handle the case where the gym does not exist
 
