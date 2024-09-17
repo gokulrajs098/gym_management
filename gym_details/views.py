@@ -46,7 +46,6 @@ request_body_schema = openapi.Schema(
             openapi.IN_QUERY,
             description="Admin ID associated with the gym details",
             type=openapi.TYPE_STRING,
-            required=True
         )
     ],
     responses={
@@ -171,23 +170,31 @@ request_body_schema = openapi.Schema(
 def manage_gym_details(request):
     if request.method == "GET":
         admin_id = request.GET.get('admin')
-        if not admin_id:
-            return Response({"error": "Admin ID is required"}, status=status.HTTP_400_BAD_REQUEST)
-        
         try:
-            # Check if the admin user exists and is a staff member
-            admin = CustomUserRegistration.objects.get(id=admin_id, is_staff=True)
+            if admin_id:
+                # Check if the admin user exists and is a staff member
+                admin = CustomUserRegistration.objects.get(id=admin_id, is_staff=True)
 
-            # Get the first gym detail associated with the admin
-            gym = GymDetails.objects.filter(admin_id=admin_id).first()
-            
-            if not gym:
-                return Response({"error": "No gym details found for this admin"}, status=status.HTTP_404_NOT_FOUND)
+                # Get the first gym detail associated with the admin
+                gym = GymDetails.objects.filter(admin_id=admin_id).first()
 
-            # Serialize the first gym detail
-            serializer = GymDetailsSerializer(gym)
-            return Response(serializer.data)
-        
+                if not gym:
+                    return Response({"error": "No gym details found for this admin"}, status=status.HTTP_404_NOT_FOUND)
+
+                # Serialize the first gym detail
+                serializer = GymDetailsSerializer(gym)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            else:
+                # Fetch all gym details if no admin_id is provided
+                gyms = GymDetails.objects.all()
+
+                if not gyms:
+                    return Response({"error": "No gym details found"}, status=status.HTTP_404_NOT_FOUND)
+
+                # Serialize all gym details
+                serializer = GymDetailsSerializer(gyms, many=True)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+
         except CustomUserRegistration.DoesNotExist:
             return Response({"error": "Admin ID not found or not an admin user"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:

@@ -391,37 +391,43 @@ def user_login(request):
 def admin_login(request):
     serializer = AdminLoginSerializer(data=request.data)
     if serializer.is_valid():
-        user = serializer.validated_data['user']
-        user_id = str(user.pk)
-
         try:
-            gym = GymDetails.objects.get(admin=user)
-            gym_id = gym.gym_id
-        except GymDetails.DoesNotExist:
-            gym_id = None  # Handle the case where the gym does not exist
+            user = serializer.validated_data['user']
+            user_id = str(user.pk)
 
-        access_token_payload = {
-            'user_id': user_id,
-            'exp': int((datetime.now() + timedelta(minutes=10)).timestamp())
-        }
-        access_token = jwt.encode(access_token_payload, SECRET_KEY, algorithm='HS256')
-        refresh_token_payload = {
-            'user_id': user_id,
-            'type': 'refresh',
-            'exp': int((datetime.now() + timedelta(days=7)).timestamp())
-        }
-        refresh_token = jwt.encode(refresh_token_payload, SECRET_KEY, algorithm='HS256')
+            try:
+                gym = GymDetails.objects.get(admin=user)
+                gym_id = gym.id
+            except GymDetails.DoesNotExist:
+                gym_id = None  # Handle the case where the gym does not exist
 
-        return Response({
-            "message": "Login successful",
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "user_id": user_id,
-            "access_token_expires_in": 600,
-            "refresh_token_expires_in": 604800,
-            "gym_id": gym_id  # Include gym_id in the response
-        }, status=status.HTTP_200_OK)
-    
+            access_token_payload = {
+                'user_id': user_id,
+                'exp': int((datetime.now() + timedelta(minutes=10)).timestamp())
+            }
+            access_token = jwt.encode(access_token_payload, SECRET_KEY, algorithm='HS256')
+
+            refresh_token_payload = {
+                'user_id': user_id,
+                'type': 'refresh',
+                'exp': int((datetime.now() + timedelta(days=7)).timestamp())
+            }
+            refresh_token = jwt.encode(refresh_token_payload, SECRET_KEY, algorithm='HS256')
+
+            return Response({
+                "message": "Login successful",
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "user_id": user_id,
+                "access_token_expires_in": 600,
+                "refresh_token_expires_in": 604800,
+                "gym_id": gym_id
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Login failed: {e}")
+            return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 @swagger_auto_schema(
     method='post',
