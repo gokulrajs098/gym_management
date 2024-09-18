@@ -424,7 +424,7 @@ def get_plan_status(status):
             'gym_id': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_UUID, description="Gym ID (UUID)"),
             'admin': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_UUID, description="Admin ID (UUID)")
         },
-        required=['stripe_payment_id', 'amount', 'status', 'gym_id', 'admin']  # Add required fields if necessary
+        required=[ 'amount', 'gym_id', 'admin']  # Add required fields if necessary
     ),
     responses={201: PaymentSerializer},
 )
@@ -444,7 +444,7 @@ def get_plan_status(status):
             'gym_id': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_UUID, description="Gym ID (UUID)"),
             'admin': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_UUID, description="Admin ID (UUID)")
         },
-        required=['stripe_payment_id', 'amount', 'status', 'gym_id', 'admin']  # Add required fields if necessary
+        required=[ 'amount' 'gym_id', 'admin']  # Add required fields if necessary
     ),
     responses={200: PaymentSerializer},
 )
