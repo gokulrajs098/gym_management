@@ -9,6 +9,7 @@ class CustomUserRegistration(AbstractUser):
     gym_name = models.CharField(max_length=20)
     gym_address = models.TextField()
     gym_phone_number = models.CharField(max_length=20)
+    is_logged_in = models.BooleanField(default=False)
 
     def __str__(self):
         return self.username

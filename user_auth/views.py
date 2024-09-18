@@ -32,15 +32,13 @@ logger = logging.getLogger(__name__)
 
 class IsSuperUserForPost(BasePermission):
     def has_permission(self, request, view):
+        if not super().has_permission(request, view):
+            return False
+        
+        # Check if the user is a superuser
         if request.method == 'POST':
-            id = request.data.get('id')
-            if id is None:
-                return False
-            try:
-                custom_user = CustomUserRegistration.objects.get(id=id)
-                return custom_user.is_superuser
-            except CustomUserRegistration.DoesNotExist:
-                return False
+            return request.user.is_superuser and request.user.is_logged_in
+        
         return True
 
 def validate_uuid(uuid_to_test):
@@ -120,19 +118,20 @@ def validate_uuid(uuid_to_test):
 @api_view(['GET', 'POST', 'PUT', 'DELETE'])
 def manage_user_register(request):
     if request.method == "GET":
-        user_id = request.GET.get('id')
-        if not user_id:
-            return Response({"error": "User ID is required"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        if not validate_uuid(user_id):
+        admin_uuid = request.GET.get('id')
+        if not admin_uuid:
+            return Response({"error": "UUID is required"}, status=status.HTTP_400_BAD_REQUEST)
+        if not validate_uuid(admin_uuid):
             return Response({"error": "Invalid UUID format"}, status=status.HTTP_400_BAD_REQUEST)
+
+        admin = get_object_or_404(CustomUserRegistration, id=admin_uuid)
         
-        try:
-            user = get_object_or_404(CustomUserRegistration, id=user_id)
-            serializer = UserRegistrationSerializer(user)
-            return Response(serializer.data)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # Check if the admin is logged in
+        if not admin.is_logged_in:
+            return Response({"error": "User must be logged in to view details"}, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = AdminRegistrationSerializer(admin)
+        return Response(serializer.data)
 
     elif request.method == "POST":
         serializer = UserRegistrationSerializer(data=request.data)
@@ -142,26 +141,37 @@ def manage_user_register(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     elif request.method == "PUT":
-        if 'id' in request.data:
-            user_uuid = request.data.get('id')
-            user = get_object_or_404(CustomUserRegistration, id=user_uuid)
-            serializer = UserRegistrationSerializer(user, data=request.data, partial=True)
-            if serializer.is_valid():
-                serializer.save()
-                return Response({"message": "User details updated successfully"}, status=status.HTTP_200_OK)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        else:
-            return Response({"error": "User UUID is required"}, status=status.HTTP_400_BAD_REQUEST)
+        admin_uuid = request.data.get('id')
+        if not admin_uuid:
+            return Response({"error": "UUID is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        admin = get_object_or_404(CustomUserRegistration, id=admin_uuid)
+        
+        # Check if the admin is logged in
+        if not admin.is_logged_in:
+            return Response({"error": "User must be logged in to update details"}, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = AdminRegistrationSerializer(admin, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"message": "Admin details updated successfully"}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     elif request.method == "DELETE":
-        user_id = request.GET.get('id')
-        if user_id:
-            user = get_object_or_404(CustomUserRegistration, id=user_id)
-            user.delete()
-            return Response({"message": "User deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
-        else:
-            return Response({"error": "User ID is required"}, status=status.HTTP_400_BAD_REQUEST)
-
+        admin_uuid = request.data.get('id')
+        if not admin_uuid:
+            return Response({"error": "UUID is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        admin = get_object_or_404(CustomUserRegistration, id=admin_uuid)
+        
+        # Check if the admin is logged in
+        if not admin.is_logged_in:
+            return Response({"error": "User must be logged in to delete details"}, status=status.HTTP_403_FORBIDDEN)
+        
+        admin.delete()
+        return Response({"message": "Admin deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
+    
+    return Response({"message":"Unauthorized Access"}, status=status.HTTP_401_UNAUTHORIZED)
 @swagger_auto_schema(
     method='get',
     operation_description="Retrieve an admin user by UUID",
@@ -324,11 +334,8 @@ def manage_admin_register(request):
             examples={
                 "application/json": {
                     "message": "Login successful",
-                    "access_token": "your_access_token",
-                    "refresh_token": "your_refresh_token",
                     "user_id": "user_id",
-                    "access_token_expires_in": 600,
-                    "refresh_token_expires_in": 604800
+                    "is_logged_in": True
                 }
             }
         ),
@@ -341,27 +348,13 @@ def user_login(request):
     if serializer.is_valid():
         user = serializer.validated_data['user']
         user_id = str(user.pk)
-
-        access_token_payload = {
-            'user_id': user_id, 
-            'exp': int((datetime.now() + timedelta(minutes=10)).timestamp())
-        }
-        access_token = jwt.encode(access_token_payload, SECRET_KEY, algorithm='HS256')
-
-        refresh_token_payload = {
-            'user_id': user_id, 
-            'type': 'refresh',
-            'exp': int((datetime.now() + timedelta(days=7)).timestamp())
-        }
-        refresh_token = jwt.encode(refresh_token_payload, SECRET_KEY, algorithm='HS256')
-
+        user = CustomUserRegistration.objects.get(id=user_id)
+        user.is_logged_in = True
+        user.save()
         return Response({
             "message": "Login successful",
-            "access_token": access_token,
-            "refresh_token": refresh_token,
             "user_id": user_id,
-            "access_token_expires_in": 600, 
-            "refresh_token_expires_in": 604800  
+            "is_logged_in": True
         }, status=status.HTTP_200_OK)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -375,18 +368,15 @@ def user_login(request):
             examples={
                 "application/json": {
                     "message": "Login successful",
-                    "access_token": "your_access_token",
-                    "refresh_token": "your_refresh_token",
                     "user_id": "user_id",
-                    "access_token_expires_in": 600,
-                    "refresh_token_expires_in": 604800
+                    "gym_id": "gym_id",
+                    "is_logged_in": True
                 }
             }
         ),
         400: 'Bad Request'
     }
 )
-
 @api_view(['POST'])
 def admin_login(request):
     serializer = AdminLoginSerializer(data=request.data)
@@ -394,6 +384,9 @@ def admin_login(request):
         try:
             user = serializer.validated_data['user']
             user_id = str(user.pk)
+            user = CustomUserRegistration.objects.get(id=user_id)
+            user.is_logged_in = True
+            user.save()
 
             try:
                 gym = GymDetails.objects.get(admin=user)
@@ -401,27 +394,11 @@ def admin_login(request):
             except GymDetails.DoesNotExist:
                 gym_id = None  # Handle the case where the gym does not exist
 
-            access_token_payload = {
-                'user_id': user_id,
-                'exp': int((datetime.now() + timedelta(minutes=10)).timestamp())
-            }
-            access_token = jwt.encode(access_token_payload, SECRET_KEY, algorithm='HS256')
-
-            refresh_token_payload = {
-                'user_id': user_id,
-                'type': 'refresh',
-                'exp': int((datetime.now() + timedelta(days=7)).timestamp())
-            }
-            refresh_token = jwt.encode(refresh_token_payload, SECRET_KEY, algorithm='HS256')
-
             return Response({
                 "message": "Login successful",
-                "access_token": access_token,
-                "refresh_token": refresh_token,
                 "user_id": user_id,
-                "access_token_expires_in": 600,
-                "refresh_token_expires_in": 604800,
-                "gym_id": gym_id
+                "gym_id": gym_id,
+                "is_logged_in": True
             }, status=status.HTTP_200_OK)
 
         except Exception as e:
@@ -429,64 +406,6 @@ def admin_login(request):
             return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-@swagger_auto_schema(
-    method='post',
-    request_body=AdminLoginSerializer,
-    responses={
-        200: openapi.Response(
-            description="Login successful",
-            examples={
-                'application/json': {
-                    "message": "Login successful",
-                    "access_token": "string",
-                    "refresh_token": "string",
-                    "user_id": "string",
-                    "access_token_expires_in": 600,
-                    "refresh_token_expires_in": 604800,
-                    "gym_id": "string or null"  # Adjust based on your actual type
-                }
-            }
-        ),
-        400: openapi.Response(
-            description="Bad Request",
-            examples={
-                'application/json': {
-                    "username": ["This field is required."],
-                    "password": ["This field is required."]
-                }
-            }
-        )
-    }
-)
-@api_view(['POST'])
-def refresh_token(request):
-    refresh_token = request.data.get('refresh_token')
-    if not refresh_token:
-        return Response({"error": "Refresh token is required"}, status=status.HTTP_400_BAD_REQUEST)
-    try:
-        decoded = jwt.decode(refresh_token, SECRET_KEY, algorithms=['HS256'])
-        user = CustomUserRegistration.objects.get(pk=decoded['user_id'])
-        user_id = str(user.pk)
-        new_access_token = jwt.encode({
-            'user_id': user_id,
-            'exp': int((datetime.now() + timedelta(minutes=10)).timestamp())
-        }, SECRET_KEY, algorithm='HS256')
-        new_refresh_token = jwt.encode({
-            'user_id': user_id,
-            'type': 'refresh',
-            'exp': int((datetime.now() + timedelta(days=7)).timestamp())
-        }, SECRET_KEY, algorithm='HS256')
-        return Response({
-            "access_token": new_access_token,
-            "refresh_token": new_refresh_token,
-            "access_token_expires_in": 600,  # Ensure the correct duration in seconds
-            "refresh_token_expires_in": 604800
-        }, status=status.HTTP_200_OK)
-    except jwt.ExpiredSignatureError:
-        return Response({"error": "Refresh token has expired"}, status=status.HTTP_401_UNAUTHORIZED)
-    except jwt.InvalidTokenError:
-        return Response({"error": "Invalid refresh token"}, status=status.HTTP_401_UNAUTHORIZED)
-    
 @swagger_auto_schema(
     method='post',
     operation_description="Log in as a superuser to obtain access and refresh tokens.",
@@ -530,60 +449,73 @@ def superuser_login(request):
         user = serializer.validated_data['user']
         if not user.is_superuser:
             return Response({"error": "Only superusers can log in here"}, status=status.HTTP_403_FORBIDDEN)
+        else:
+            
+            
+            user_id = str(user.pk)
+            user = CustomUserRegistration.objects.get(id=user_id)
+            user.is_logged_in = True
+            user.save()
 
-        user_id = str(user.pk)
-
-        access_token_payload = {
-            'user_id': user_id,  
-            'exp': int((datetime.now() + timedelta(minutes=10)).timestamp())
-        }
-        access_token = jwt.encode(access_token_payload, SECRET_KEY, algorithm='HS256')
-        refresh_token_payload = {
-            'user_id': user_id,
-            'type': 'refresh',
-            'exp': int((datetime.now() + timedelta(days=7)).timestamp())
-        }
-        refresh_token = jwt.encode(refresh_token_payload, SECRET_KEY, algorithm='HS256') 
-
-        return Response({
-            "message": "Login successful",
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "user_id": user_id,
-            "access_token_expires_in": 600,  # 10 minutes in seconds
-            "refresh_token_expires_in": 604800  # 7 days in seconds
-        }, status=status.HTTP_200_OK)
+            return Response({
+                "message": "Login successful",
+                "user_id": user_id,
+            }, status=status.HTTP_200_OK)
+    
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @swagger_auto_schema(
     method='post',
-    operation_description="Logout user by token.",
-    request_body=LogoutSerializer,
+    operation_description="Logs out a user by setting the 'is_logged_in' status to False.",
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            'user_id': openapi.Schema(type=openapi.TYPE_STRING, description='ID of the user to log out')
+        },
+        required=['user_id']
+    ),
     responses={
-        200: "User logged out successfully",
-        400: "Bad Request, token is invalid or missing"
+        200: openapi.Response(
+            description="User logged out successfully",
+            examples={
+                "application/json": {
+                    "message": "User logged out successfully"
+                }
+            }
+        ),
+        400: openapi.Response(
+            description="Bad request, user was not logged in",
+            examples={
+                "application/json": {
+                    "message": "User was not logged in"
+                }
+            }
+        ),
+        404: openapi.Response(
+            description="User not found",
+            examples={
+                "application/json": {
+                    "message": "User not found"
+                }
+            }
+        )
     }
 )
 @api_view(['POST'])
 def logout_view(request):
-    serializer = LogoutSerializer(data=request.data)
-
-    if serializer.is_valid():
-        refresh_token = serializer.validated_data['refresh']
-        try:
-            token = RefreshToken(refresh_token)
-            token.blacklist()  # Try to blacklist the refresh token
-
-            return Response({'message': 'User logged out successfully'}, status=status.HTTP_200_OK)
+    try:
+        user_id = request.data.get('user_id')
+        user = CustomUserRegistration.objects.get(id=user_id)
         
-        except TokenError as e:  # Catch the TokenError for invalid or expired tokens
-            # Differentiate between expiration and invalid token
-            if 'expired' in str(e):
-                return Response({'error': 'Token has expired, please log in again.'}, status=status.HTTP_400_BAD_REQUEST)
-            return Response({'error': 'Token is invalid or could not be blacklisted.'}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({'error': f'Token is invalid or could not blacklist: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        if user.is_logged_in:
+            user.is_logged_in = False
+            user.save()
+            return Response({"message": "User logged out successfully"}, status=status.HTTP_200_OK)
+        else:
+            return Response({"message": "User was not logged in"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    except CustomUserRegistration.DoesNotExist:
+        return Response({"message": "User not found"}, status=status.HTTP_404_NOT_FOUND)
 
 @swagger_auto_schema(
     method='post',
