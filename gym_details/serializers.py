@@ -11,7 +11,7 @@ class GymDetailsSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = GymDetails
-        fields = ['gym_name', 'gym_owner_first_name', 'gym_owner_last_name', 'gym_address', 'gym_phone_number', 'gym_email', 'admin']
+        fields = ['id', 'gym_name', 'gym_owner_first_name', 'gym_owner_last_name', 'gym_address', 'gym_phone_number', 'gym_email', 'admin']
     client_id = 'ca_QjwlKtQ5NP4fSeo5O0EuVAHm6MNEA7TC'
     def create(self, validated_data):
         gym_name = validated_data['gym_name']
