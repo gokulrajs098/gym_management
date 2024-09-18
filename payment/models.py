@@ -13,7 +13,7 @@ class Payment(models.Model):
     username = models.CharField(max_length=100)
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
-    stripe_payment_id = models.CharField(max_length=255)
+    stripe_payment_id = models.CharField(max_length=255, blank=True)
     plan_name = models.CharField(max_length=50, null=True, blank=True)
     amount = models.DecimalField(max_digits=20, decimal_places=2)
     status = models.CharField(max_length=50, choices=PAYMENT_STATUS_CHOICES)
