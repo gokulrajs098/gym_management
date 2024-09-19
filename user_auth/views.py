@@ -32,14 +32,17 @@ logger = logging.getLogger(__name__)
 
 class IsSuperUserForPost(BasePermission):
     def has_permission(self, request, view):
-        if not super().has_permission(request, view):
-            return False
-        
-        # Check if the user is a superuser
         if request.method == 'POST':
-            return request.user.is_superuser and request.user.is_logged_in
-        
+            id = request.data.get('id')
+            if id is None:
+                return False
+            try:
+                custom_user = CustomUserRegistration.objects.get(id=id)
+                return custom_user.is_superuser
+            except CustomUserRegistration.DoesNotExist:
+                return False
         return True
+
 
 def validate_uuid(uuid_to_test):
     try:
