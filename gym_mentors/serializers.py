@@ -8,7 +8,7 @@ class MentorSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Mentors
-        fields = ['username', 'first_name', 'last_name', 'email', 'password1', 'password2', 'phone_number', 'expertise', 'admin', 'Gym']
+        fields = ['username', 'first_name', 'last_name', 'email', 'password1', 'password2', 'phone_number', 'expertise', 'admin', 'Gym', 'is_login']
 
     def validate(self, attrs):
         # Check if username already exists
@@ -56,25 +56,22 @@ class MentorSerializer(serializers.ModelSerializer):
         instance.phone_number = validated_data.get('phone_number', instance.phone_number)
         instance.save()
         return instance
+
+
 class MentorLoginSerializer(serializers.Serializer):
-    username = serializers.CharField(required=True)
-    password = serializers.CharField(required=True, write_only=True)
+    username = serializers.CharField(max_length=50)
+    password = serializers.CharField(max_length=200)
 
-    def validate(self, data):
-        username = data.get('username')
-        password = data.get('password')
-
-        if not username or not password:
-            raise serializers.ValidationError("Username and password are required.")
+    def validate(self, attrs):
+        username = attrs.get('username')
+        password = attrs.get('password')
 
         try:
-            user = Mentors.objects.get(username=username)
+            mentor = Mentors.objects.get(username=username)
+            if not check_password(password, mentor.password):  # Compare hashed password
+                raise serializers.ValidationError("Invalid password.")
         except Mentors.DoesNotExist:
-            raise serializers.ValidationError("Invalid credentials.")
+            raise serializers.ValidationError("Mentor not found.")
 
-        # Use check_password to verify the hashed password
-        if not check_password(password, user.password):
-            raise serializers.ValidationError("Invalid credentials.")
-
-        data['user'] = user
-        return data
+        attrs['mentor'] = mentor
+        return attrs

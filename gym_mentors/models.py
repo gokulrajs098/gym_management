@@ -14,6 +14,7 @@ class Mentors(models.Model):
     phone_number=models.CharField(max_length=20)
     admin = models.ForeignKey(CustomUserRegistration, related_name='mentors',null=True, blank=True,on_delete=models.CASCADE )
     Gym = models.ForeignKey(GymDetails, on_delete=models.CASCADE, related_name='mentors', null=True, blank=True)
+    is_login = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
         if self.admin and not self.admin.is_staff:

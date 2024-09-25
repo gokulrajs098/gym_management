@@ -453,8 +453,6 @@ def superuser_login(request):
         if not user.is_superuser:
             return Response({"error": "Only superusers can log in here"}, status=status.HTTP_403_FORBIDDEN)
         else:
-            
-            
             user_id = str(user.pk)
             user = CustomUserRegistration.objects.get(id=user_id)
             user.is_logged_in = True

@@ -4,6 +4,7 @@ from django.shortcuts import get_object_or_404, get_list_or_404
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view
+from django.views.decorators.csrf import csrf_exempt
 from .serializers import MentorSerializer, MentorLoginSerializer
 from .models import Mentors
 from user_auth.models import CustomUserRegistration
@@ -11,6 +12,7 @@ import uuid
 import jwt
 from datetime import timedelta, datetime
 from gym_details.models import GymDetails
+from django.core.exceptions import ObjectDoesNotExist
 
 SECRET_KEY = ")_^4mxv8-8z$+lq5j%vuu%o09c20mcgs2_fp)3zy*hy9=0wo6("
 
@@ -213,7 +215,133 @@ def manage_mentor(request):
             return Response({"error": "Admin ID not found or not an admin user"}, status=status.HTTP_404_NOT_FOUND)
         except Mentors.DoesNotExist:
             return Response({"error": "Mentor ID not found for the given admin"}, status=status.HTTP_404_NOT_FOUND)
+
+@swagger_auto_schema(
+    method='post',
+    operation_description="User login endpoint to authenticate and receive tokens.",
+    request_body=MentorLoginSerializer,
+    responses={
+        200: openapi.Response(
+            description="Login successful",
+            examples={
+                "application/json": {
+                    "message": "Login successful",
+                    "user_id": "user_id",
+                    "is_logged_in": True
+                }
+            }
+        ),
+        400: 'Bad Request'
+    }
+)
+@csrf_exempt
+@api_view(['POST'])
+def mentor_login(request):
+    serializer = MentorLoginSerializer(data=request.data)
+    
+    if serializer.is_valid():
+        try:
+            user = serializer.validated_data['mentor']
+            user_id = str(user.pk)
             
+            # Fetch the user and set the is_logged_in field
+            user = Mentors.objects.get(id=user_id)
+            user.is_login = True
+            user.save()
+
+            # Assuming gym_id is a ForeignKey field in the Mentor model
+            gym_id = user.Gym.id # Replace 'gym_id' with the correct field name if different
+
+            return Response({
+                "message": "Login successful",
+                "mentor_id": user_id,
+                "is_logged_in": True,
+                "gym_id": gym_id
+            }, status=status.HTTP_200_OK)
+        
+        except ObjectDoesNotExist:
+            return Response({
+                "message": "Mentor not found."
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        except Exception as e:
+            # Catch any other exceptions and return a generic error
+            return Response({
+                "message": "An error occurred during login.",
+                "error": str(e)  # Log the error for debugging
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    # Return validation errors from the serializer
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@swagger_auto_schema(
+    method='post',
+    operation_description="Logs out a user by setting the 'is_logged_in' status to False.",
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            'user_id': openapi.Schema(type=openapi.TYPE_STRING, description='ID of the user to log out')
+        },
+        required=['user_id']
+    ),
+    responses={
+        200: openapi.Response(
+            description="User logged out successfully",
+            examples={
+                "application/json": {
+                    "message": "User logged out successfully"
+                }
+            }
+        ),
+        400: openapi.Response(
+            description="Bad request, user was not logged in",
+            examples={
+                "application/json": {
+                    "message": "User was not logged in"
+                }
+            }
+        ),
+        404: openapi.Response(
+            description="User not found",
+            examples={
+                "application/json": {
+                    "message": "User not found"
+                }
+            }
+        )
+    }
+)
+@csrf_exempt
+@api_view(['POST'])
+def mentor_logout(request):
+    try:
+        # Retrieve user_id from request data
+        user_id = request.data.get('user_id')
+
+        if not user_id:
+            return Response({"message": "User ID is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Try to fetch the mentor using the user_id
+        user = Mentors.objects.get(id=user_id)
+
+        if user.is_login:
+            # Set the is_logged_in field to False and save
+            user.is_login = False
+            user.save()
+            return Response({"message": "User logged out successfully"}, status=status.HTTP_200_OK)
+        else:
+            return Response({"message": "User was not logged in"}, status=status.HTTP_400_BAD_REQUEST)
+
+    except Mentors.DoesNotExist:  # Handle case where mentor is not found
+        return Response({"message": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:  # Catch any other exceptions
+        return Response({
+            "message": "An error occurred during logout.",
+            "error": str(e)  # Log the error message for debugging
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+"""            
 @swagger_auto_schema(
     method='post',
     request_body=MentorLoginSerializer,
@@ -338,4 +466,4 @@ def refresh_token(request):
     except jwt.ExpiredSignatureError:
         return Response({"error": "Refresh token has expired"}, status=status.HTTP_401_UNAUTHORIZED)
     except jwt.InvalidTokenError:
-        return Response({"error": "Invalid refresh token"}, status=status.HTTP_401_UNAUTHORIZED)
+        return Response({"error": "Invalid refresh token"}, status=status.HTTP_401_UNAUTHORIZED)"""
