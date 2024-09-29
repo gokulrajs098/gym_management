@@ -157,7 +157,7 @@ def manage_user_register(request):
         serializer = UserRegistrationSerializer(admin, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            return Response({"message": "Admin details updated successfully"}, status=status.HTTP_200_OK)
+            return Response({"message": "User details updated successfully"}, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     elif request.method == "DELETE":
@@ -172,7 +172,7 @@ def manage_user_register(request):
             return Response({"error": "User must be logged in to delete details"}, status=status.HTTP_403_FORBIDDEN)
         
         admin.delete()
-        return Response({"message": "Admin deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
+        return Response({"message": "User deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
     
     return Response({"message":"Unauthorized Access"}, status=status.HTTP_401_UNAUTHORIZED)
 @swagger_auto_schema(
