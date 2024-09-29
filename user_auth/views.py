@@ -161,17 +161,17 @@ def manage_user_register(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     elif request.method == "DELETE":
-        admin_uuid = request.data.get('id')
-        if not admin_uuid:
+        user_uuid = request.GET.get('id')
+        if not user_uuid:
             return Response({"error": "UUID is required"}, status=status.HTTP_400_BAD_REQUEST)
         
-        admin = get_object_or_404(CustomUserRegistration, id=admin_uuid)
+        user = get_object_or_404(CustomUserRegistration, id=user_uuid)
         
         # Check if the admin is logged in
-        if not admin.is_logged_in:
+        if not user.is_logged_in:
             return Response({"error": "User must be logged in to delete details"}, status=status.HTTP_403_FORBIDDEN)
         
-        admin.delete()
+        user.delete()
         return Response({"message": "Admin deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
     
     return Response({"message":"Unauthorized Access"}, status=status.HTTP_401_UNAUTHORIZED)
@@ -320,7 +320,7 @@ def manage_admin_register(request):
             return Response({"error": "id is required"}, status=status.HTTP_400_BAD_REQUEST)
     elif request.method == "DELETE":
         if 'id' in request.data:
-            admin_uuid = request.data.get('id')
+            admin_uuid = request.GET.get('id')
             admin = get_object_or_404(CustomUserRegistration, id=admin_uuid)
             admin.delete()
             return Response({"message": "Admin deleted successfully"}, status=status.HTTP_204_NO_CONTENT)

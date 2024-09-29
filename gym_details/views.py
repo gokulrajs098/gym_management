@@ -249,7 +249,7 @@ def manage_gym_details(request):
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     elif request.method == "DELETE":
-        admin_id = request.data.get('admin')
+        admin_id = request.GET.get('admin')
         if not admin_id:
             return Response({"error": "Admin ID is required"}, status=status.HTTP_400_BAD_REQUEST)
 
