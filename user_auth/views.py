@@ -133,7 +133,7 @@ def manage_user_register(request):
         if not admin.is_logged_in:
             return Response({"error": "User must be logged in to view details"}, status=status.HTTP_403_FORBIDDEN)
         
-        serializer = AdminRegistrationSerializer(admin)
+        serializer = UserRegistrationSerializer(admin)
         return Response(serializer.data)
 
     elif request.method == "POST":
@@ -154,7 +154,7 @@ def manage_user_register(request):
         if not admin.is_logged_in:
             return Response({"error": "User must be logged in to update details"}, status=status.HTTP_403_FORBIDDEN)
         
-        serializer = AdminRegistrationSerializer(admin, data=request.data, partial=True)
+        serializer = UserRegistrationSerializer(admin, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response({"message": "Admin details updated successfully"}, status=status.HTTP_200_OK)
