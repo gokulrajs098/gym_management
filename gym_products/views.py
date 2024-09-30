@@ -54,7 +54,6 @@ from drf_yasg.utils import swagger_auto_schema
         openapi.Parameter('type', openapi.IN_FORM, type=openapi.TYPE_STRING, description='Product type', required=True),
         openapi.Parameter('desc', openapi.IN_FORM, type=openapi.TYPE_STRING, description='Product description', required=True),
         openapi.Parameter('image', openapi.IN_FORM, type=openapi.TYPE_FILE, description='Product image', required=True),
-        openapi.Parameter('reviews', openapi.IN_FORM, type=openapi.TYPE_STRING, description='Product reviews', required=True),
         openapi.Parameter('stock', openapi.IN_FORM, type=openapi.TYPE_INTEGER, description='Product stock', required=True),
         openapi.Parameter('price', openapi.IN_FORM, type=openapi.TYPE_NUMBER, format=openapi.FORMAT_DECIMAL, description='Product price', required=True),
         openapi.Parameter('gym_id', openapi.IN_FORM, type=openapi.TYPE_STRING, format=openapi.FORMAT_UUID, description='Gym ID (UUID)', required=True),
@@ -87,6 +86,51 @@ from drf_yasg.utils import swagger_auto_schema
     }
 )
 @swagger_auto_schema(
+    method='patch',
+    manual_parameters=[
+        openapi.Parameter('admin', openapi.IN_FORM, description='Admin ID (required)', type=openapi.TYPE_STRING, format='uuid' ),
+        openapi.Parameter('gym_id', openapi.IN_FORM, description='Gym ID (required)', type=openapi.TYPE_STRING, format='uuid'),
+        openapi.Parameter('product_id', openapi.IN_FORM, description='Product ID (required)', type=openapi.TYPE_STRING, format='uuid' ),
+        openapi.Parameter('image', openapi.IN_FORM, description='Product image (optional)', type=openapi.TYPE_STRING),
+        openapi.Parameter('name', openapi.IN_FORM, description='Product name (optional)', type=openapi.TYPE_STRING),
+        openapi.Parameter('type', openapi.IN_FORM, description='Product type (optional)', type=openapi.TYPE_STRING),
+        openapi.Parameter('desc', openapi.IN_FORM, description='Product description (optional)', type=openapi.TYPE_STRING),
+        openapi.Parameter('reviews', openapi.IN_FORM, description='Product reviews (optional)', type=openapi.TYPE_STRING),
+        openapi.Parameter('stock', openapi.IN_FORM, description='Product stock (optional)', type=openapi.TYPE_INTEGER),
+        openapi.Parameter('price', openapi.IN_FORM, description='Product price (optional, in decimal format)', type=openapi.TYPE_NUMBER),
+        openapi.Parameter('Gym', openapi.IN_FORM, description='Gym ID associated with the product (optional)', type=openapi.TYPE_INTEGER),
+    ],
+    responses={
+        200: openapi.Response(
+            'Product details partially updated successfully', 
+            openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'message': openapi.Schema(type=openapi.TYPE_STRING, description='Success message'),
+                },
+            )
+        ),
+        400: openapi.Response(
+            'Bad request', 
+            openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'error': openapi.Schema(type=openapi.TYPE_STRING, description='Error message'),
+                },
+            )
+        ),
+        404: openapi.Response(
+            'Not found', 
+            openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'error': openapi.Schema(type=openapi.TYPE_STRING, description='Error message indicating what was not found'),
+                },
+            )
+        ),
+    },
+)
+@swagger_auto_schema(
     method='delete',
     operation_description="Delete a product. Requires Admin ID, Gym ID, and Product ID.",
     manual_parameters=[
@@ -100,7 +144,7 @@ from drf_yasg.utils import swagger_auto_schema
         404: openapi.Response(description='Not Found'),
     }
 )
-@api_view(['GET', 'POST', 'PUT', 'DELETE'])
+@api_view(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'])
 @parser_classes([FormParser, MultiPartParser])
 def manage_products(request):
     try:
@@ -173,7 +217,31 @@ def manage_products(request):
                 serializer.save()
                 return Response({"message": "Product details updated successfully"}, status=status.HTTP_200_OK)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        elif request.method == "PATCH":
+            admin_id = request.data.get('admin')
+            gym_id = request.data.get('gym_id')
+            product_id = request.data.get('product_id')
+            if not admin_id or not gym_id or not product_id:
+                return Response({"error": "Admin ID, Gym ID, and Product ID are required"}, status=status.HTTP_400_BAD_REQUEST)
 
+            # Verify admin user
+            if not CustomUserRegistration.objects.filter(id=admin_id, is_staff=True).exists():
+                return Response({"error": "Admin ID not found or not an admin user"}, status=status.HTTP_404_NOT_FOUND)
+
+            admin = CustomUserRegistration.objects.get(id=admin_id, is_staff=True)
+            gym = GymDetails.objects.get(id=gym_id, admin=admin)
+
+            # Verify if the product belongs to the gym and admin
+            gym_product = get_object_or_404(GymProducts, admin_id=admin_id, Gym=gym, id=product_id)
+
+            # Partially update product details
+            serializer = ProductSerializer(gym_product, data=request.data, partial=True, context={'request': request})
+            if serializer.is_valid():
+                serializer.save()
+                return Response({"message": "Product details partially updated successfully"}, status=status.HTTP_200_OK)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
         elif request.method == "DELETE":
             admin_id = request.query_params.get('admin')
             gym_id = request.query_params.get('gym_id')

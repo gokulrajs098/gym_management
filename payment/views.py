@@ -1,6 +1,6 @@
 import stripe
 from django.conf import settings
-from django.shortcuts import redirect
+from django.shortcuts import redirect,render
 from django.urls import reverse
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -16,6 +16,14 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
 stripe.api_key = settings.STRIPE_TEST_SECRET_KEY
+def test_payment_success(request):
+    return render(request, 'payment_sucess.html', {
+        'plan_name': 'Test Plan',
+        'amount': 50.00,  # You can set any test amount
+        'first_name': 'Test',
+        'last_name': 'User',
+        'gym_name': 'Test Gym',
+    })
 
 @swagger_auto_schema(
     method='post',
@@ -193,15 +201,12 @@ def create_checkout_session(request):
 
         session = stripe.checkout.Session.create(**session_params)
 
-        # Replace placeholders in URLs with actual session ID
-        success_url = request.build_absolute_uri(reverse('payment_success')) + f'?session_id={session.id}'
-        cancel_url = request.build_absolute_uri(reverse('payment_cancel'))
+
 
         # Return the session ID and URLs to the frontend
         return Response({
             'sessionId': session.id,
-            'successUrl': success_url,
-            'cancelUrl': cancel_url,
+
             'sessionUrl': session.url
         })
 
@@ -230,80 +235,95 @@ def create_order(**kwargs):
     )
     return order
 
-@swagger_auto_schema(
-    method='get',
-    manual_parameters=[
-        openapi.Parameter('session_id', openapi.IN_QUERY, description="Stripe session ID", type=openapi.TYPE_STRING)
-    ],
-    responses={
-        200: openapi.Response(description='Payment successful'),
-        400: openapi.Response(description='Error'),
-        500: openapi.Response(description='Server Error')
-    }
-)
-@api_view(['GET'])
+# @swagger_auto_schema(
+#     method='get',
+#     manual_parameters=[
+#         openapi.Parameter('session_id', openapi.IN_QUERY, description="Stripe session ID", type=openapi.TYPE_STRING)
+#     ],
+#     responses={
+#         200: openapi.Response(description='Payment successful'),
+#         400: openapi.Response(description='Error'),
+#         500: openapi.Response(description='Server Error')
+#     }
+# )
+# @api_view(['GET'])
 def payment_success(request):
     session_id = request.GET.get('session_id')
-    session = stripe.checkout.Session.retrieve(session_id)
-    customer = stripe.Customer.retrieve(session.customer)
-    user_id = customer.metadata.get('user_id') 
-    gym_id = customer.metadata.get('gym_id', 'N/A') 
-    plan_name = customer.metadata.get('plan_name')
+    
+    if not session_id:
+        return Response({'error': 'Missing session_id'}, status=400)
+
+    try:
+        session = stripe.checkout.Session.retrieve(session_id)
+        customer = stripe.Customer.retrieve(session.customer)
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+
+    user_id = customer.metadata.get('user_id', 'N/A')
+    gym_id = customer.metadata.get('gym_id', 'N/A')
+    plan_name = customer.metadata.get('plan_name', 'N/A')
 
     gym = get_object_or_404(GymDetails, id=gym_id)
-
-            # Retrieve the CustomUserRegistration instance
     user = get_object_or_404(CustomUserRegistration, id=user_id)
 
     payment = Payment.objects.create(
         username=customer.metadata.get('username', 'N/A'),
         first_name=customer.metadata.get('first_name', 'N/A'),
         last_name=customer.metadata.get('last_name', 'N/A'),
-        plan_name = customer.metadata.get('plan_name', 'N/A'),
+        plan_name=plan_name,
         gym=gym,
-        amount=session.amount_total / 100,
+        amount=session.amount_total / 100,  # Convert to dollars
         stripe_payment_id=session.payment_intent,
         status='success',
         user=user,
     )
     if session.mode == 'subscription':
-        stripe_subscription = stripe.Subscription.retrieve(session.subscription)
-        subscription_status = stripe_subscription.status
+        try:
+            stripe_subscription = stripe.Subscription.retrieve(session.subscription)
+            subscription_status = stripe_subscription.status
+            
+            if subscription_status in ['active', 'trialing']:
+                plan_status = 'active'
+            elif subscription_status in ['canceled', 'incomplete_expired']:
+                plan_status = 'expired'
+            elif subscription_status == 'past_due':
+                plan_status = 'pending'
+            else:
+                plan_status = 'unknown'
+            Customer.objects.create(
+                plan_name=plan_name, 
+                username=customer.metadata.get('username', 'N/A'),
+                first_name=customer.metadata.get('first_name', 'N/A'),
+                last_name=customer.metadata.get('last_name', 'N/A'),
+                gym=gym_id,
+                stripe_subscription_id=stripe_subscription.id,
+                plan_start_date=datetime.utcfromtimestamp(int(stripe_subscription['current_period_start'])),
+                plan_end_date=datetime.utcfromtimestamp(int(stripe_subscription['current_period_end'])),
+                plan_status=plan_status,
+                user=user,
+            )
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
 
-        if subscription_status in ['active', 'trialing']:
-            plan_status = 'active'
-        elif subscription_status in ['canceled', 'incomplete_expired']:
-            plan_status = 'expired'
-        elif subscription_status == 'past_due':
-            plan_status = 'pending'
-        else:
-            plan_status = 'unknown'
-        Customer.objects.create(
-            plan_name = customer.metadata.get('plan_name'), 
-            username=customer.metadata.get('username', 'N/A'),
-            first_name=customer.metadata.get('first_name', 'N/A'),
-            last_name=customer.metadata.get('last_name', 'N/A'),
-            gym=customer.metadata.get('gym_id', 'N/A'),
-            stripe_subscription_id=stripe_subscription.id,
-            plan_start_date=datetime.utcfromtimestamp(int(stripe_subscription['current_period_start'])),
-            plan_end_date=datetime.utcfromtimestamp(int(stripe_subscription['current_period_end'])),
-            plan_status = plan_status,
-            user =customer.metadata.get('user_id', 'N/A')
-        )
+    return render(request, 'payment_sucess.html', {
+        'plan_name': plan_name,
+        'amount': session.amount_total / 100,
+        'first_name': customer.metadata.get('first_name', 'N/A'),
+        'last_name': customer.metadata.get('last_name', 'N/A'),
+        'gym_name': gym.gym_name,
+    })
 
-    return Response({'message': 'Payment successful'})
 
-@swagger_auto_schema(
-    method='get',
-    responses={
-        200: openapi.Response(description='Payment was canceled'),
-        400: openapi.Response(description='Error')
-    }
-)
-@api_view(['GET'])
+# @swagger_auto_schema(
+#     method='get',
+#     responses={
+#         200: openapi.Response(description='Payment was canceled'),
+#         400: openapi.Response(description='Error')
+#     }
+# )
+# @api_view(['GET'])
 def payment_cancel(request):
-    # Handle the payment cancellation
-    return Response({'message': 'Payment was canceled'})
+    return render(request, 'payment_cancel.html')
 
 @api_view(['POST'])
 def stripe_webhook(request):
@@ -406,7 +426,6 @@ def get_plan_status(status):
         return 'pending'
     else:
         return 'unknown'
-
 
 @swagger_auto_schema(
     method='post',

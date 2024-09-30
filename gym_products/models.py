@@ -11,7 +11,7 @@ class GymProducts(models.Model):
     type = models.CharField(max_length=50)
     desc = models.CharField(max_length=100)
     image = models.ImageField(upload_to='pics')
-    reviews = models.CharField(max_length=100)
+    reviews = models.CharField(max_length=100, null=True, blank=True)
     stock = models.IntegerField()
     price = models.DecimalField(max_digits=10, decimal_places=2,default= 0)  # New price field
     Gym = models.ForeignKey(GymDetails, on_delete=models.CASCADE)

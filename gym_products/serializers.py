@@ -15,7 +15,7 @@ class ProductSerializer(serializers.ModelSerializer):
     name = serializers.CharField(required=True)
     type = serializers.CharField(required=True)
     desc = serializers.CharField(required=True)
-    reviews = serializers.CharField(required=True)
+    reviews = serializers.CharField(required=False)
     stock = serializers.IntegerField(required=True)
     price = serializers.DecimalField(max_digits=10, decimal_places=2, required=True)  # New price field
     Gym = serializers.PrimaryKeyRelatedField(queryset=GymDetails.objects.all(), required=True)
@@ -24,9 +24,8 @@ class ProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = GymProducts
         fields = ['id', 'name', 'type', 'desc', 'image', 'reviews', 'stock', 'price', 'Gym', 'admin', 'stripe_product_id', 'stripe_price_id']
-    
+
     def create(self, validated_data):
-        # Create a Stripe Product
         stripe_product = stripe.Product.create(
             name=validated_data['name'],
             description=validated_data['desc'],
@@ -54,22 +53,29 @@ class ProductSerializer(serializers.ModelSerializer):
         instance.image = validated_data.get('image', instance.image)
         instance.reviews = validated_data.get('reviews', instance.reviews)
         instance.stock = validated_data.get('stock', instance.stock)
-        instance.price = validated_data.get('price', instance.price)  # Update price
         
-        # Optional: Update Stripe product/price if needed
-        if 'name' in validated_data or 'desc' in validated_data or 'price' in validated_data:
-            # Update Stripe Product
+        # Check if the price has changed
+        new_price = validated_data.get('price', instance.price)
+        if new_price != instance.price:
+            # Create a new Stripe Price
+            new_stripe_price = stripe.Price.create(
+                product=instance.stripe_product_id,
+                unit_amount=int(new_price * 100),  # Convert price to cents
+                currency='usd',
+            )
+            validated_data['stripe_price_id'] = new_stripe_price.id
+
+        # Update Stripe Product if name or description has changed
+        if 'name' in validated_data or 'desc' in validated_data:
             stripe.Product.modify(
                 instance.stripe_product_id,
                 name=validated_data.get('name', instance.name),
                 description=validated_data.get('desc', instance.desc),
             )
 
-            # Update Stripe Price
-            stripe.Price.modify(
-                instance.stripe_price_id,
-                unit_amount=int(validated_data.get('price', instance.price) * 100),  # Convert price to cents
-            )
-
+        # Update the local instance
+        instance.price = new_price
+        instance.stripe_price_id = validated_data.get('stripe_price_id', instance.stripe_price_id)
         instance.save()
+
         return instance
