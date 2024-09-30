@@ -502,8 +502,15 @@ def get_payment_details(request):
 
         try:
             admin = CustomUserRegistration.objects.get(id=admin_id, is_staff=True)
-            payment = get_object_or_404(Payment, gym=gym_id)
-            serializer = PaymentSerializer(payment)
+
+            # Fetch all payment details for the specified gym_id
+            payments = Payment.objects.filter(gym=gym_id)
+            
+            if not payments.exists():
+                return Response({"error": "No payment details found for this gym"}, status=status.HTTP_404_NOT_FOUND)
+
+            # Serialize the queryset with many=True to handle multiple objects
+            serializer = PaymentSerializer(payments, many=True)
             return Response(serializer.data)
         except CustomUserRegistration.DoesNotExist:
             return Response({"error": "Admin ID not found or not an admin user"}, status=status.HTTP_404_NOT_FOUND)
