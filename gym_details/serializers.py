@@ -3,11 +3,12 @@ from rest_framework import serializers
 from .models import GymDetails
 from user_auth.serializers import AdminRegistrationSerializer
 import stripe
+from user_auth.models import CustomUserRegistration
 from django.conf import settings
 
 stripe.api_key = settings.STRIPE_TEST_SECRET_KEY
 class GymDetailsSerializer(serializers.ModelSerializer):
-    admin = AdminRegistrationSerializer(write_only=True)
+    admin = serializers.PrimaryKeyRelatedField(queryset=CustomUserRegistration.objects.filter(is_staff=True), required=True, write_only=True)
 
     class Meta:
         model = GymDetails

@@ -20,8 +20,8 @@ class ProductSerializer(serializers.ModelSerializer):
     stock = serializers.IntegerField(required=True)
     price = serializers.DecimalField(max_digits=10, decimal_places=2, required=True)  # New price field
     Gym = serializers.PrimaryKeyRelatedField(queryset=GymDetails.objects.all(), required=True)
-    admin = serializers.PrimaryKeyRelatedField(queryset=CustomUserRegistration.objects.filter(is_staff=True), required=True,)
-    admin = AdminRegistrationSerializer(write_only=True)
+    admin = serializers.PrimaryKeyRelatedField(queryset=CustomUserRegistration.objects.filter(is_staff=True), required=True, write_only=True)
+
     
     class Meta:
         model = GymProducts

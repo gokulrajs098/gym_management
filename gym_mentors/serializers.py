@@ -2,11 +2,12 @@ from rest_framework import serializers
 from django.contrib.auth.hashers import make_password, check_password
 from .models import Mentors
 from user_auth.serializers import AdminRegistrationSerializer
+from user_auth.models import CustomUserRegistration
 
 class MentorSerializer(serializers.ModelSerializer):
     password1 = serializers.CharField(write_only=True, required=True)
     password2 = serializers.CharField(write_only=True, required=True)
-    admin = AdminRegistrationSerializer(write_only=True)
+    admin = serializers.PrimaryKeyRelatedField(queryset=CustomUserRegistration.objects.filter(is_staff=True), required=True, write_only=True)
 
     class Meta:
         model = Mentors

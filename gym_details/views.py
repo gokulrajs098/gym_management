@@ -14,6 +14,7 @@ from django.conf import settings
 import requests 
 import stripe
 from rest_framework.views import APIView
+from rest_framework.exceptions import ValidationError
 
 def validate_uuid(uuid_to_test):
     try:
@@ -206,21 +207,49 @@ def manage_gym_details(request):
             return Response({"error": "Admin ID is required"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
+            # Fetch the admin user and ensure it's a staff member
             admin = CustomUserRegistration.objects.get(id=admin_id, is_staff=True)
+
+            # Check if a GymDetails entry already exists for this admin
+            if GymDetails.objects.filter(admin=admin).exists():
+                return Response({"error": "A gym entry already exists for this admin"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Validate the request data
+            if 'gym_name' not in request.data:
+                return Response({"error": "Gym name is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Pass the request data to the serializer
+            serializer = GymDetailsSerializer(data=request.data)
+
+            if serializer.is_valid():
+                # Save the gym details, associating with the admin
+                serializer.save(admin=admin)
+                return Response({"message":"Gym registered successfully"}, status=status.HTTP_201_CREATED)
+            else:
+                # If serializer validation fails, return the errors
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
         except CustomUserRegistration.DoesNotExist:
             return Response({"error": "Admin ID not found or not an admin user"}, status=status.HTTP_404_NOT_FOUND)
 
-        # Check if a GymDetails entry already exists for this admin
-        if GymDetails.objects.filter(admin=admin).exists():
-            return Response({"error": "A gym entry already exists for this admin"}, status=status.HTTP_400_BAD_REQUEST)
+        except KeyError as ke:
+            # Handle missing field errors
+            return Response({"error": f"Missing field: {str(ke)}"}, status=status.HTTP_400_BAD_REQUEST)
 
-        serializer = GymDetailsSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save(admin=admin)
-            response_data = serializer.data  # Use serializer.data to get the response data after saving
-            return Response(response_data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            # Catch any other unexpected exceptions and return a generic error response
+            return Response({"error": "An unexpected error occurred", "details": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except CustomUserRegistration.DoesNotExist:
+            return Response({"error": "Admin ID not found or not an admin user"}, status=status.HTTP_404_NOT_FOUND)
+
+        except ValidationError as ve:
+            # Handle serializer validation errors more specifically
+            return Response({"error": "Validation Error", "details": str(ve)}, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            # Catch any other unexpected exceptions and return a generic error response
+            return Response({"error": "An unexpected error occurred", "details": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     elif request.method == "PUT":
         admin_id = request.data.get('admin')
