@@ -210,11 +210,16 @@ def manage_gym_details(request):
         except CustomUserRegistration.DoesNotExist:
             return Response({"error": "Admin ID not found or not an admin user"}, status=status.HTTP_404_NOT_FOUND)
 
+        # Check if a GymDetails entry already exists for this admin
+        if GymDetails.objects.filter(admin=admin).exists():
+            return Response({"error": "A gym entry already exists for this admin"}, status=status.HTTP_400_BAD_REQUEST)
+
         serializer = GymDetailsSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save(admin=admin)
-            response_data = serializer.save()
+            response_data = serializer.data  # Use serializer.data to get the response data after saving
             return Response(response_data, status=status.HTTP_201_CREATED)
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     elif request.method == "PUT":

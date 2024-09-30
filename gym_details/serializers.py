@@ -7,7 +7,7 @@ from django.conf import settings
 
 stripe.api_key = settings.STRIPE_TEST_SECRET_KEY
 class GymDetailsSerializer(serializers.ModelSerializer):
-    admin = AdminRegistrationSerializer(read_only=True)
+    admin = AdminRegistrationSerializer(write_only=True)
 
     class Meta:
         model = GymDetails
