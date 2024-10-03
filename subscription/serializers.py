@@ -8,7 +8,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
     def validate(self, attrs):
-        required_fields = ['admin','desc', 'plan_name', 'price']
+        required_fields = ['admin','desc', 'plan_name', 'price', 'interval', 'interval_count']
         missing_fields = [field for field in required_fields if field not in attrs or attrs[field] == '']
 
         if missing_fields:
@@ -30,6 +30,11 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             product=stripe_product.id,
             unit_amount=int(product.price * 100),  
             currency='usd', 
+            recurring={
+        "interval": product.interval,  # Use the interval input (e.g., 'month' or 'year')
+        "interval_count": product.interval_count  # Use interval_count (e.g., every 3 months)
+    },
+
         )
 
         product.stripe_product_id = stripe_product.id

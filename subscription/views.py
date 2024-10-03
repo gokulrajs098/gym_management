@@ -42,9 +42,10 @@ def validate_uuid(uuid_to_test):
                 'price': openapi.Schema(type=openapi.TYPE_INTEGER, description='Price of the plan'),
                 'admin': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_UUID, description='UUID of the admin (optional)', nullable=True),
                 'gym_id': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_UUID, description='UUID of the gym (optional)', nullable=True),
-                'interval': openapi.Schema(type=openapi.TYPE_STRING, description='Interval for the plan')
+                'interval': openapi.Schema(type=openapi.TYPE_STRING, description='Interval for the plan'),
+                'interval_count': openapi.Schema(type=openapi.TYPE_STRING, description='Interval count for the plan')
             },
-            required=['plan_name', 'desc', 'price','gym', 'interval', 'admin']
+            required=['plan_name', 'desc', 'price','gym', 'interval', 'admin', 'interval_count']
         )
     )
 @swagger_auto_schema(
@@ -58,9 +59,10 @@ def validate_uuid(uuid_to_test):
                 'price': openapi.Schema(type=openapi.TYPE_INTEGER, description='Price of the plan'),
                 'admin': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_UUID, description='UUID of the admin (optional)', nullable=True),
                 'gym_id': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_UUID, description='UUID of the gym (optional)', nullable=True),
-                'interval': openapi.Schema(type=openapi.TYPE_STRING, description='Interval for the plan')
+                'interval': openapi.Schema(type=openapi.TYPE_STRING, description='Interval for the plan'),
+                'interval_count': openapi.Schema(type=openapi.TYPE_STRING, description='Interval count for the plan')
             },
-            required=['plan_name', 'desc', 'price','gym', 'interval', 'admin']
+            required=['plan_name', 'desc', 'price','gym', 'interval', 'admin', 'interval_count']
         )
     )
 @swagger_auto_schema(
@@ -105,25 +107,30 @@ def manage_subscriptions(request):
         admin_id = request.data.get('admin')
         gym_id = request.data.get('gym_id')
 
+        # Check if admin_id and gym_id are provided
         if not admin_id or not gym_id:
             return Response({"error": "Admin ID and Gym ID are required"}, status=status.HTTP_400_BAD_REQUEST)
         
+        # Validate the admin (ensure the admin_id exists and is an admin user)
         try:
             admin = CustomUserRegistration.objects.get(id=admin_id, is_staff=True)
         except CustomUserRegistration.DoesNotExist:
             return Response({"error": "Admin ID not found or not an admin user"}, status=status.HTTP_404_NOT_FOUND)
 
+        # Validate the gym (ensure the gym_id exists)
+        gym = get_object_or_404(GymDetails, id=gym_id)
+
         # Check if a subscription already exists for the given admin_id and gym_id
-        if SubscriptionPlan.objects.filter(admin=admin, gym=gym_id).exists():
+        if SubscriptionPlan.objects.filter(admin=admin, gym=gym).exists():
             return Response({"error": "A subscription plan for this gym by this admin already exists"}, status=status.HTTP_400_BAD_REQUEST)
 
         # If no existing subscription, proceed to create a new one
         serializer = SubscriptionSerializer(data=request.data)
         if serializer.is_valid():
-            gym = get_object_or_404(GymDetails, id=gym_id)
-            # Pass the admin and gym as keyword arguments
+            # Save the subscription with admin and gym information
             serializer.save(admin=admin, gym=gym)
             return Response({"message": "Subscription plan details added successfully"}, status=status.HTTP_201_CREATED)
+        
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     elif request.method == "PUT":

@@ -13,6 +13,7 @@ class SubscriptionPlan(models.Model):
     stripe_product_id = models.CharField(max_length=50, null=True, blank=True)
     stripe_price_id = models.CharField(max_length=50, null=True, blank=True)
     interval = models.CharField(max_length=50)
+    interval_count = models.CharField(max_length=50)
 
     def __str__(self):
         return self.plan_name
