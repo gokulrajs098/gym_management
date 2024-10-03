@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from .models import Payment, Orders
 from customers.models import Customer
 from gym_details.models import GymDetails
+from gym_products.models import GymProducts
 from user_auth.models import CustomUserRegistration
 from rest_framework import status
 from .serializers import PaymentSerializer
@@ -126,22 +127,44 @@ def create_checkout_session(request):
     promo_code = request.data.get('promo_code')
     payment_type = request.data.get('payment_type')
 
+    # Step 1: Validate required fields
     if not stripe_price_id or not product_type:
         return Response({'error': 'Missing required fields: stripe_price_id or product_type'}, status=400)
 
+    # Step 2: Validate user_id, gym_id, and product_id
     try:
-        gym_details = GymDetails.objects.get(id=gym_id)
-        if gym_details.promo_code_offers and promo_code:
+        # Check if the user exists
+        user = get_object_or_404(CustomUserRegistration, id=user_id)
+        
+        # Check if the gym exists
+        gym = get_object_or_404(GymDetails, id=gym_id)
+
+        # Check if the product exists
+        product = get_object_or_404(GymProducts, id=product_id)
+        
+    except CustomUserRegistration.DoesNotExist:
+        return Response({'error': 'User not found'}, status=404)
+    except GymDetails.DoesNotExist:
+        return Response({'error': 'Gym not found'}, status=404)
+    except GymProducts.DoesNotExist:
+        return Response({'error': 'Product not found'}, status=404)
+
+    # Step 3: Check if the gym offers a promo code
+    try:
+        if gym.promo_code_offers and promo_code:
             promo_code_data = stripe.Coupon.retrieve(promo_code)
             if promo_code_data:
-                discount = {
-                    'coupon': promo_code,
-                }
+                discount = {'coupon': promo_code}
             else:
                 return Response({'error': 'Invalid promo code'}, status=400)
         else:
             discount = {}
+    
+    except stripe.error.StripeError as e:
+        return Response({'error': 'Invalid promo code'}, status=400)
 
+    try:
+        # Step 4: Handle COD payment
         if payment_type == 'cod':
             # Create order for COD payment
             order = create_order(
@@ -166,6 +189,7 @@ def create_checkout_session(request):
                 'message': 'Order created successfully with COD payment type'
             })
 
+        # Step 5: Create Stripe customer and session
         customer = stripe.Customer.create(
             email=request.data.get('email'),
             metadata={
@@ -184,6 +208,7 @@ def create_checkout_session(request):
             }
         )
 
+        # Step 6: Create Stripe checkout session
         session_params = {
             'payment_method_types': ['card'],
             'line_items': [{
@@ -201,12 +226,9 @@ def create_checkout_session(request):
 
         session = stripe.checkout.Session.create(**session_params)
 
-
-
         # Return the session ID and URLs to the frontend
         return Response({
             'sessionId': session.id,
-
             'sessionUrl': session.url
         })
 
@@ -272,7 +294,7 @@ def payment_success(request):
         last_name=customer.metadata.get('last_name', 'N/A'),
         plan_name=plan_name,
         gym=gym,
-        amount=session.amount_total / 100,  # Convert to dollars
+        amount=session.amount_total / 100,
         stripe_payment_id=session.payment_intent,
         status='success',
         user=user,
