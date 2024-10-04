@@ -10,11 +10,15 @@ from customers.models import Customer
 from gym_details.models import GymDetails
 from gym_products.models import GymProducts
 from user_auth.models import CustomUserRegistration
+from django.db import IntegrityError
 from rest_framework import status
 from .serializers import PaymentSerializer
 from django.shortcuts import get_object_or_404
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+import logging
+
+logger = logging.getLogger('gym_app')
 
 stripe.api_key = settings.STRIPE_TEST_SECRET_KEY
 def test_payment_success(request):
@@ -139,15 +143,11 @@ def create_checkout_session(request):
         # Check if the gym exists
         gym = get_object_or_404(GymDetails, id=gym_id)
 
-        # Check if the product exists
-        product = get_object_or_404(GymProducts, id=product_id)
         
     except CustomUserRegistration.DoesNotExist:
         return Response({'error': 'User not found'}, status=404)
     except GymDetails.DoesNotExist:
         return Response({'error': 'Gym not found'}, status=404)
-    except GymProducts.DoesNotExist:
-        return Response({'error': 'Product not found'}, status=404)
 
     # Step 3: Check if the gym offers a promo code
     try:
@@ -238,6 +238,10 @@ def create_checkout_session(request):
     except Exception as e:
         # Handle other exceptions
         return Response({'error': str(e)}, status=500)
+    except Exception as e:
+        logger.error(f"Error in checkout session: {str(e)}")
+        return Response({'error': str(e)}, status=500)
+
 
 def create_order(**kwargs):
     # Create order in your database
@@ -301,9 +305,11 @@ def payment_success(request):
     )
     if session.mode == 'subscription':
         try:
+            # Step 1: Retrieve subscription from Stripe
             stripe_subscription = stripe.Subscription.retrieve(session.subscription)
             subscription_status = stripe_subscription.status
             
+            # Step 2: Determine plan status based on subscription status
             if subscription_status in ['active', 'trialing']:
                 plan_status = 'active'
             elif subscription_status in ['canceled', 'incomplete_expired']:
@@ -312,20 +318,40 @@ def payment_success(request):
                 plan_status = 'pending'
             else:
                 plan_status = 'unknown'
+
+            # Step 3: Create the customer in your database
             Customer.objects.create(
-                plan_name=plan_name, 
+                plan_name=plan_name,
                 username=customer.metadata.get('username', 'N/A'),
                 first_name=customer.metadata.get('first_name', 'N/A'),
                 last_name=customer.metadata.get('last_name', 'N/A'),
-                gym=gym_id,
+                gym=gym,
                 stripe_subscription_id=stripe_subscription.id,
                 plan_start_date=datetime.utcfromtimestamp(int(stripe_subscription['current_period_start'])),
                 plan_end_date=datetime.utcfromtimestamp(int(stripe_subscription['current_period_end'])),
                 plan_status=plan_status,
                 user=user,
             )
+
+        except stripe.error.StripeError as e:
+            # Stripe API error
+            logger.error(f"Stripe error: {str(e)}")
+            return render(request, 'payment_cancel.html')
+
+        except IntegrityError as e:
+            # Database integrity error
+            logger.error(f"Database error: {str(e)}")
+            return render(request, 'payment_cancel.html')
+
+        except KeyError as e:
+            # KeyError if certain fields are missing from metadata
+            logger.error(f"Missing key in session metadata: {str(e)}")
+            return render(request, 'payment_cancel.html')
+
         except Exception as e:
-            return Response({'error': str(e)}, status=500)
+            # Catch any other unexpected errors
+            logger.error(f"Unexpected error: {str(e)}")
+            return render(request, 'payment_cancel.html')
 
     return render(request, 'payment_sucess.html', {
         'plan_name': plan_name,
