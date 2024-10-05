@@ -5,7 +5,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'django-insecure-nixm7fm9#21(2nqsglpx6nep_n+edi()4)xn+24pnq##pdt@$5'
 
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = [
     '*'
@@ -33,7 +33,8 @@ INSTALLED_APPS = [
     'attendance',
     'drf_yasg',
     'corsheaders',
-    'events'
+    'events',
+    'whitenoise'
 ]
 SWAGGER_SETTINGS = {
     'SECURITY_DEFINITIONS': {
@@ -159,44 +160,20 @@ STRIPE_TEST_SECRET_KEY = 'sk_test_51PoJKD2Nl8qYGrs6nhbZtVdW4FaEh8T4Y38quI78JT4Ug
 STRIPE_WEBHOOK_SECRET = 'whsec_r6sotUf6z30HXuShwfB3kHwbX8uEiBn6'
 
 
-import os
+# import os
 
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'verbose': {
-            'format': '{levelname} {asctime} {module} {message}',
-            'style': '{',
-        },
-        'simple': {
-            'format': '{levelname} {message}',
-            'style': '{',
-        },
-    },
-    'handlers': {
-        'file': {
-            'level': 'ERROR',  # Log errors or higher levels
-            'class': 'logging.FileHandler',
-            'filename': os.path.join(BASE_DIR, 'django_error.log'),  # Log file path
-            'formatter': 'verbose',
-        },
-        'console': {
-            'level': 'DEBUG',
-            'class': 'logging.StreamHandler',
-            'formatter': 'simple',
-        },
-    },
-    'loggers': {
-        'django': {
-            'handlers': ['file', 'console'],  # Log to both file and console
-            'level': 'ERROR',  # Log error messages and higher
-            'propagate': True,
-        },
-        'myapp': {  # You can name this after your app
-            'handlers': ['file'],
-            'level': 'DEBUG',
-            'propagate': True,
-        },
-    },
-}
+# LOGGING = {
+#     'version': 1,
+#     'disable_existing_loggers': False,
+#     'handlers': {
+#         'console': {
+#             'class': 'logging.StreamHandler',
+#         },
+#     },
+#     'loggers': {
+#         'django': {
+#             'handlers': ['console'],
+#             'level': 'DEBUG',
+#         },
+#     },
+# }
