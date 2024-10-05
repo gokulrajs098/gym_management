@@ -11,7 +11,7 @@ class MentorSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Mentors
-        fields = ['username', 'first_name', 'last_name', 'email', 'password1', 'password2', 'phone_number', 'expertise', 'admin', 'Gym', 'is_login']
+        fields = ['id','username', 'first_name', 'last_name', 'email', 'password1', 'password2', 'phone_number', 'expertise', 'admin', 'Gym', 'is_login']
 
     def validate(self, attrs):
         # Check if username already exists
