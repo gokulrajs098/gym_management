@@ -25,7 +25,7 @@ customer_request_body_schema = openapi.Schema(
         'gym': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_UUID, description='Gym ID (UUID)'),
         'admin': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_UUID, description='Admin ID (UUID)')
     },
-    required=['user', 'first_name', 'last_name', 'username', 'plan_status', 'plan_start_date', 'plan_end_date', 'gym']  # Mark required fields here
+    required=[ 'first_name', 'last_name', 'username', 'plan_status', 'plan_start_date', 'plan_end_date', 'gym']  # Mark required fields here
 )
 
 customer_request_body_schema_put = openapi.Schema(
@@ -44,7 +44,7 @@ customer_request_body_schema_put = openapi.Schema(
         'gym': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_UUID, description='Gym ID (UUID)'),
         'admin': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_UUID, description='Admin ID (UUID)')
     },
-    required=['user', 'first_name', 'last_name', 'username', 'plan_status', 'plan_start_date', 'plan_end_date', 'gym']  # Mark required fields here
+    required=['first_name', 'last_name', 'username', 'plan_status', 'plan_start_date', 'plan_end_date', 'gym']  # Mark required fields here
 )
 
 @swagger_auto_schema(
