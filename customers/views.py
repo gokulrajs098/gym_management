@@ -192,11 +192,11 @@ def manage_customer(request):
             return Response({"error": "Gym detail not found for the given Gym ID and Admin ID"}, status=status.HTTP_404_NOT_FOUND)
 
     elif request.method == "DELETE":
-        user_id = request.data.get('customer_id')
-        admin_id = request.data.get('admin')
+        user_id = request.GET.get('customer_id')
+        admin_id = request.GET.get('admin')
 
         if not user_id or not admin_id:
-            return Response({"error": "User ID and Admin ID are required"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Customer ID and Admin ID are required"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             # Check if the admin is valid and has the required permissions
