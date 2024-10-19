@@ -3,5 +3,5 @@ from . import views
 
 
 urlpatterns = [
-    path('api/push_notifications', views.send_notifications)
+    path('api/push-notifications', views.send_notifications)
 ]

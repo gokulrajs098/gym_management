@@ -37,6 +37,7 @@ urlpatterns = [
     path('subscriptions/', include('subscription.urls')),
     path('attendance/', include('attendance.urls')),
     path('customers/', include('customers.urls')),
-    path('events/', include('events.urls'))
+    path('events/', include('events.urls')),
+    path('messaging/', include('messaging.urls'))
 ] 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
