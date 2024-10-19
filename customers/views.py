@@ -33,7 +33,6 @@ customer_request_body_schema_put = openapi.Schema(
     type=openapi.TYPE_OBJECT,
     properties={
         'id': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_UUID, description='ID (UUID)'),
-        'user_id': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_UUID, description='User ID (UUID)'),
         'plan_name': openapi.Schema(type=openapi.TYPE_STRING, description='Plan Name'),
         'first_name': openapi.Schema(type=openapi.TYPE_STRING, description='First Name'),
         'last_name': openapi.Schema(type=openapi.TYPE_STRING, description='Last Name'),
@@ -104,7 +103,7 @@ customer_request_body_schema_put = openapi.Schema(
 @swagger_auto_schema(
     method='delete',
     manual_parameters=[
-        openapi.Parameter('user_id', openapi.IN_QUERY, description="User ID (UUID)", type=openapi.TYPE_STRING, format=openapi.FORMAT_UUID),
+        openapi.Parameter('customer_id', openapi.IN_QUERY, description="Customer ID (UUID)", type=openapi.TYPE_STRING, format=openapi.FORMAT_UUID),
         openapi.Parameter('admin', openapi.IN_QUERY, description="Admin ID (UUID)", type=openapi.TYPE_STRING, format=openapi.FORMAT_UUID),
     ],
     responses={
@@ -193,7 +192,7 @@ def manage_customer(request):
             return Response({"error": "Gym detail not found for the given Gym ID and Admin ID"}, status=status.HTTP_404_NOT_FOUND)
 
     elif request.method == "DELETE":
-        user_id = request.data.get('user_id')
+        user_id = request.data.get('customer_id')
         admin_id = request.data.get('admin')
 
         if not user_id or not admin_id:
