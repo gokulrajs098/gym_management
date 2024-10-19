@@ -1,5 +1,7 @@
 from pathlib import Path
 import os
+import firebase_admin
+from firebase_admin import credentials
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -159,7 +161,8 @@ PUBLISHABLE_KEY = 'pk_test_51PoJKD2Nl8qYGrs6csUvVlJY32LDWPzoj1aRVe3lhThD4038Nz9a
 STRIPE_TEST_SECRET_KEY = 'sk_test_51PoJKD2Nl8qYGrs6nhbZtVdW4FaEh8T4Y38quI78JT4Ugv64Pnx3yARuPKZegLmj9dF5OGUymV0R11R8vIN2lobs00kOlCL091'
 STRIPE_WEBHOOK_SECRET = 'whsec_r6sotUf6z30HXuShwfB3kHwbX8uEiBn6'
 
-
+cred = credentials.Certificate(os.path.join(BASE_DIR,'firebase.json'))
+firebase_admin.initialize_app(cred)
 # import os
 
 # LOGGING = {

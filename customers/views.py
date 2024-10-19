@@ -205,9 +205,6 @@ def manage_customer(request):
             # Fetch the customer object using the user_id
             customer = get_object_or_404(Customer, id=user_id)
 
-            # Check if the customer is associated with the gym and admin
-            if customer.gym.admin_id != admin_id:
-                return Response({"error": "Customer does not belong to the specified gym and admin"}, status=status.HTTP_403_FORBIDDEN)
 
             # Delete the customer object
             customer.delete()
