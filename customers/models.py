@@ -21,3 +21,4 @@ class Customer(models.Model):
     plan_end_date = models.DateTimeField()
     gym = models.ForeignKey(GymDetails, related_name='customers', on_delete=models.CASCADE)
     stripe_subscription_id = models.CharField(max_length=100, null=True)
+    fcm_token = models.CharField(max_length=50, null=False, blank=False)
